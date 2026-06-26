@@ -32,7 +32,6 @@
         "jest-fetch-mock": "^3.0.3",
         "nanoid": "^5.1.5",
         "obscenity": "^0.4.3",
-        "openfront-client": "./OpenFrontIO",
         "pg": "^8.16.3",
         "pg-format": "^1.0.4",
         "seedrandom": "^3.0.5",
