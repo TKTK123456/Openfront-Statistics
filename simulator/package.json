@@ -1,0 +1,58 @@
+{
+    "name": "sim",
+    "version": "1.0.0",
+    "description": "Openfront simulator",
+    "main": "src/test.ts",
+    "scripts": {
+        "start": "npx tsx src/sim.ts",
+        "build": "true",
+        "generate-nix": "bun2nix > bun.nix",
+        "format": "prettier --write 'src/**/*.{ts,tsx,js,jsx}'",
+        "lint": "eslint src --fix",
+        "test": "jest --config jest.config.cjs"
+    },
+    "module": "src/ListGames.ts",
+    "type": "module",
+    "keywords": [],
+    "author": "TKTK1234567",
+    "license": "MIT",
+    "dependencies": {
+        "@eslint/compat": "^1.3.1",
+        "@eslint/js": "^9.31.0",
+        "@types/node": "^22.16.5",
+        "@types/pg": "^8.15.4",
+        "@types/ws": "^8.18.1",
+        "@unrs/resolver-binding-linux-x64-gnu": "^1.11.1",
+        "chai": "^5.2.1",
+        "colord": "^2.9.3",
+        "colorjs.io": "^0.5.2",
+        "dompurify": "^3.2.6",
+        "fastpriorityqueue": "^0.7.5",
+        "intl-messageformat": "^11.0.7",
+        "jest-fetch-mock": "^3.0.3",
+        "nanoid": "^5.1.5",
+        "obscenity": "^0.4.3",
+        "openfront-client": "./OpenFrontIO",
+        "pg": "^8.16.3",
+        "pg-format": "^1.0.4",
+        "seedrandom": "^3.0.5",
+        "sharp": "^0.34.2",
+        "tsx": "^4.22.3",
+        "twemoji": "^14.0.2",
+        "typescript": "^5.8.3",
+        "typescript-eslint": "^8.37.0",
+        "uuid": "^11.1.0",
+        "winston": "^3.17.0",
+        "winston-transport": "^4.9.0",
+        "zod": "^4.0.0"
+    },
+    "devDependencies": {
+        "@types/jest": "^30.0.0",
+        "@types/pg-format": "^1.0.5",
+        "eslint-plugin-prettier": "^5.5.3"
+    },
+    "trustedDependencies": [
+        "openfront-client",
+        "protobufjs"
+    ]
+}

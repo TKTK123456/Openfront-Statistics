@@ -1,0 +1,30 @@
+// https://www.typescriptlang.org/tsconfig/
+{
+    "compilerOptions": {
+        // Language and Environment
+        "target": "ESNext",
+
+        // Modules
+        "module": "nodenext",
+        "rootDir": ".",
+        "outDir": "dist",
+        "moduleResolution": "nodenext",
+
+        // Emit
+        "sourceMap": true,
+
+        // Type Checking
+        "allowSyntheticDefaultImports": true,
+        "allowUnusedLabels": false,
+        "alwaysStrict": true,
+        "esModuleInterop": true,
+        "experimentalDecorators": true,
+        "resolveJsonModule": true,
+        "strictNullChecks": true,
+        "useDefineForClassFields": false,
+        "noEmit": true,
+        "allowImportingTsExtensions": true
+    },
+    "include": ["src/*"],
+    "exclude": []
+}
