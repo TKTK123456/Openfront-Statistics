@@ -54,16 +54,25 @@ const mapLoader = new gameMapLoader(
     path.join(PROJECT_ROOT, "/resources/maps"),
   );
 let gameRunner: Promise<GameRunner> | null = null;
+let gr: GameRunner;
 const gameUpdate = function(g: GameUpdateViewData | ErrorUpdate) {
-  console.log(g)
+  if (gr.game.ticks()<1000||gr.game.ticks() !% 100) return
+  console.log(gr.game.allPlayers().filter(p => {
+    return p.tiles().size > 1000
+  }).map(p=>{
+    return p.name()
+  }))
+  console.log(gr.game.ticks()+"/"+gameInfo[1].length)
 }
 
 if (gameInfo[0] !== undefined) {
   gameRunner = createGameRunner(gameInfo[0], undefined, mapLoader, gameUpdate).then((gr) => {return gr;});
-  const gr = await gameRunner;
-  for (const turnNum in gameInfo[1]) {
+  gr = await gameRunner;
+  console.log(gameInfo[1].length)
+  for (let turnNum = 0; turnNum < gameInfo[1].length; turnNum++) {
     const turn = gameInfo[1][turnNum]
     gr.addTurn(turn)
     gr.executeNextTick()
   }
+  console.log("Done")
 }
