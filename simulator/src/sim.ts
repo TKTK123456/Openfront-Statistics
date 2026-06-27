@@ -1,6 +1,4 @@
 import { createGameRunner, GameRunner } from "../OpenFrontIO/src/core/GameRunner";
-import { FetchGameMapLoader } from "../OpenFrontIO/src/core/game/FetchGameMapLoader";
-import { assetUrl } from "../OpenFrontIO/src/core/AssetUrls";
 import { GameStartInfo, GameStartInfoSchema, Turn, TurnSchema,  } from "../OpenFrontIO/src/core/Schemas";
 import { MapManifest } from "../OpenFrontIO/src/core/game/TerrainMapLoader";
 import { GameMapType } from "../OpenFrontIO/src/core/game/Game"
@@ -8,17 +6,20 @@ import { GameMapLoader, MapData } from "../OpenFrontIO/src/core/game/GameMapLoad
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url";
+import { ErrorUpdate, GameUpdateViewData } from "../OpenFrontIO/src/core/game/GameUpdates";
+import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../OpenFrontIO",
 );
 
-async function fetchGame(id: string): Promise<[GameStartInfo | undefined, []]> {
+async function fetchGame(id: string): Promise<[GameStartInfo | undefined, Turn[]]> {
   let res = await fetch("https://api.openfront.io/public/game/" + id);
   const json = await res.json();
   const startInfo = GameStartInfoSchema.safeParse(json.info)
-  return [startInfo.data, json.turns]
+  const turns = decompressGameRecord(json).turns
+  return [startInfo.data, turns]
 }
 
 const gameInfo = await fetchGame("rJTLpUjY")
@@ -53,12 +54,16 @@ const mapLoader = new gameMapLoader(
     path.join(PROJECT_ROOT, "/resources/maps"),
   );
 let gameRunner: Promise<GameRunner> | null = null;
-const gameUpdate = function() {
-
+const gameUpdate = function(g: GameUpdateViewData | ErrorUpdate) {
+  console.log(g)
 }
 
 if (gameInfo[0] !== undefined) {
-  //console.log(mapLoader.getMapData(gameInfo[0].config.gameMap).webpPath)
   gameRunner = createGameRunner(gameInfo[0], undefined, mapLoader, gameUpdate).then((gr) => {return gr;});
-  console.log(await gameRunner)
+  const gr = await gameRunner;
+  for (const turnNum in gameInfo[1]) {
+    const turn = gameInfo[1][turnNum]
+    gr.addTurn(turn)
+    gr.executeNextTick()
+  }
 }
