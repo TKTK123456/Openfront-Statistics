@@ -14,6 +14,8 @@ const PROJECT_ROOT = path.resolve(
   "../OpenFrontIO",
 );
 
+const gameID = "rJTLpUjY";
+
 async function fetchGame(id: string): Promise<[GameStartInfo | undefined, Turn[]]> {
   let res = await fetch("https://api.openfront.io/public/game/" + id);
   const json = await res.json();
@@ -22,7 +24,7 @@ async function fetchGame(id: string): Promise<[GameStartInfo | undefined, Turn[]
   return [startInfo.data, turns]
 }
 
-const gameInfo = await fetchGame("rJTLpUjY")
+const gameInfo = await fetchGame(gameID)
 //console.log(gameInfo)
 
 class gameMapLoader implements GameMapLoader {
