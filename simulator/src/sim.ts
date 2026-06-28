@@ -73,6 +73,12 @@ const mapLoader = new gameMapLoader(path.join(PROJECT_ROOT, "/resources/maps"));
 let gameRunner: Promise<GameRunner> | null = null;
 let gr: GameRunner;
 
+interface updateHandlerInterface {
+  ownerId(state: number): number;
+  tileUpdate(packedTileUpdates: Uint32Array): void;
+  tickHandler(g: GameUpdateViewData | ErrorUpdate): void;
+}
+
 class updateHandler {
   private static readonly IS_LAND_BIT = 7;
   private static readonly SHORELINE_BIT = 6;
@@ -83,23 +89,35 @@ class updateHandler {
   private static readonly PLAYER_ID_MASK = 0xfff;
   private static readonly FALLOUT_BIT = 13;
   private static readonly DEFENSE_BONUS_BIT = 14;
+  public turnInterval: number;
 
-  constructor() {}
+  constructor(turnInterval: number) {
+    this.turnInterval = turnInterval;
+  }
 
-  tileUpdate(packedTileUpdates: Uint32Array) {
-    const tileUpdates: [number, number][] = [];
+  ownerId(state: number): number {
+    return state & updateHandler.PLAYER_ID_MASK;
+  }
+
+  updatedTileRefs: number[] = []
+
+  tileUpdate(packedTileUpdates: Uint32Array): undefined {
+    //const tileUpdates: [number, number][] = [];
     const packed = packedTileUpdates;
     for (let i = 0; i + 1 < packed.length; i += 2) {
       const tile = packed[i];
-      const state = packed[i + 1] & 0xffff;
-      const terrainByte = (packed[i + 1] >>> 16) & 0xff;
-      tileUpdates.push([tile, state]);
+      //const state = packed[i + 1] & 0xffff;
+      this.updatedTileRefs.push(tile)
+      //tileUpdates.push([tile, state]);
     }
-    console.log(tileUpdates);
   }
 
-  tickHandler(g: GameUpdateViewData | ErrorUpdate) {
-    if (gr.game.ticks() < 1000 || gr.game.ticks() !% turnInterval) return;
+  tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
+    if ("packedTileUpdates" in g) {
+      this.tileUpdate(g.packedTileUpdates);
+    }
+    if (gr.game.ticks() < 1000 || gr.game.ticks()! % this.turnInterval) return;
+    this.updatedTileRefs = []
     console.log(
       gr.game
         .allPlayers()
@@ -110,22 +128,18 @@ class updateHandler {
           return p.name();
         }),
     );
-    //gr.game.map().
-    if ("packedTileUpdates" in g) {
-      this.tileUpdate(g.packedTileUpdates)
-    }
+    console.log(this.updatedTileRefs)
     console.log(gr.game.ticks() + "/" + gameInfo[1].length);
   }
 }
-
-const gameUpdateHandler = new updateHandler();
+const gameUpdateHandler = new updateHandler(turnInterval);
 
 if (gameInfo[0] !== undefined) {
   gameRunner = createGameRunner(
     gameInfo[0],
     undefined,
     mapLoader,
-    gameUpdateHandler.tickHandler,
+    gameUpdateHandler.tickHandler.bind(gameUpdateHandler),
   ).then((gr) => {
     return gr;
   });
