@@ -22,6 +22,8 @@ import {
   GameUpdateViewData,
 } from "../OpenFrontIO/src/core/game/GameUpdates";
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
+import { TileRef } from "../OpenFrontIO/src/core/game/GameMap";
+import { GameImpl } from "../OpenFrontIO/src/core/game/GameImpl";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -99,25 +101,20 @@ class updateHandler {
     return state & updateHandler.PLAYER_ID_MASK;
   }
 
-  updatedTileRefs: number[] = []
+  conquredTiles: Map<number, number> = new Map()
 
-  tileUpdate(packedTileUpdates: Uint32Array): undefined {
-    //const tileUpdates: [number, number][] = [];
-    const packed = packedTileUpdates;
-    for (let i = 0; i + 1 < packed.length; i += 2) {
-      const tile = packed[i];
-      //const state = packed[i + 1] & 0xffff;
-      this.updatedTileRefs.push(tile)
-      //tileUpdates.push([tile, state]);
+  conquredTile(tile: number) {
+    if (this.conquredTiles.has(tile)) {
+      let frequency = this.conquredTiles.get(tile)
+      if (frequency === undefined) return;
+      this.conquredTiles.set(tile, frequency+1)
+    } else {
+      this.conquredTiles.set(tile, 1)
     }
   }
 
   tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
-    if ("packedTileUpdates" in g) {
-      this.tileUpdate(g.packedTileUpdates);
-    }
-    if (gr.game.ticks() < 1000 || gr.game.ticks()! % this.turnInterval) return;
-    this.updatedTileRefs = []
+    if (gr.game.inSpawnPhase() || gr.game.ticks()! % this.turnInterval) return;
     console.log(
       gr.game
         .allPlayers()
@@ -128,7 +125,9 @@ class updateHandler {
           return p.name();
         }),
     );
-    console.log(this.updatedTileRefs)
+    console.log(this.conquredTiles)
+
+    this.conquredTiles.clear();
     console.log(gr.game.ticks() + "/" + gameInfo[1].length);
   }
 }
@@ -149,6 +148,15 @@ if (gameInfo[0] !== undefined) {
     const turn = gameInfo[1][turnNum];
     gr.addTurn(turn);
     gr.executeNextTick();
+    if (!gr.game.inSpawnPhase()) {
+      gr.game.allPlayers().map(p=>{
+    const oldConquer = p.conquer.bind(p)
+    p.conquer = function(tile: number) {
+      gameUpdateHandler.conquredTile(tile)
+      return oldConquer(tile)
+    }
+  })
+    }
   }
   console.log("Done");
 }
