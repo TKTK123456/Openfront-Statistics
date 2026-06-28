@@ -1,12 +1,26 @@
-import { createGameRunner, GameRunner } from "../OpenFrontIO/src/core/GameRunner";
-import { GameStartInfo, GameStartInfoSchema, Turn, TurnSchema,  } from "../OpenFrontIO/src/core/Schemas";
+import {
+  createGameRunner,
+  GameRunner,
+} from "../OpenFrontIO/src/core/GameRunner";
+import {
+  GameStartInfo,
+  GameStartInfoSchema,
+  Turn,
+  TurnSchema,
+} from "../OpenFrontIO/src/core/Schemas";
 import { MapManifest } from "../OpenFrontIO/src/core/game/TerrainMapLoader";
-import { GameMapType } from "../OpenFrontIO/src/core/game/Game"
-import { GameMapLoader, MapData } from "../OpenFrontIO/src/core/game/GameMapLoader"; 
-import fs from "fs"
-import path from "path"
+import { GameMapType } from "../OpenFrontIO/src/core/game/Game";
+import {
+  GameMapLoader,
+  MapData,
+} from "../OpenFrontIO/src/core/game/GameMapLoader";
+import fs from "fs";
+import path from "path";
 import { fileURLToPath } from "url";
-import { ErrorUpdate, GameUpdateViewData } from "../OpenFrontIO/src/core/game/GameUpdates";
+import {
+  ErrorUpdate,
+  GameUpdateViewData,
+} from "../OpenFrontIO/src/core/game/GameUpdates";
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
 
 const PROJECT_ROOT = path.resolve(
@@ -15,16 +29,19 @@ const PROJECT_ROOT = path.resolve(
 );
 
 const gameID = "rJTLpUjY";
+const turnInterval = 100;
 
-async function fetchGame(id: string): Promise<[GameStartInfo | undefined, Turn[]]> {
+async function fetchGame(
+  id: string,
+): Promise<[GameStartInfo | undefined, Turn[]]> {
   let res = await fetch("https://api.openfront.io/public/game/" + id);
   const json = await res.json();
-  const startInfo = GameStartInfoSchema.safeParse(json.info)
-  const turns = decompressGameRecord(json).turns
-  return [startInfo.data, turns]
+  const startInfo = GameStartInfoSchema.safeParse(json.info);
+  const turns = decompressGameRecord(json).turns;
+  return [startInfo.data, turns];
 }
 
-const gameInfo = await fetchGame(gameID)
+const gameInfo = await fetchGame(gameID);
 //console.log(gameInfo)
 
 class gameMapLoader implements GameMapLoader {
@@ -52,29 +69,72 @@ class gameMapLoader implements GameMapLoader {
     };
   }
 }
-const mapLoader = new gameMapLoader(
-    path.join(PROJECT_ROOT, "/resources/maps"),
-  );
+const mapLoader = new gameMapLoader(path.join(PROJECT_ROOT, "/resources/maps"));
 let gameRunner: Promise<GameRunner> | null = null;
 let gr: GameRunner;
-const gameUpdate = function(g: GameUpdateViewData | ErrorUpdate) {
-  if (gr.game.ticks()<1000||gr.game.ticks() !% 100) return
-  console.log(gr.game.allPlayers().filter(p => {
-    return p.tiles().size > 1000
-  }).map(p=>{
-    return p.name()
-  }))
-  console.log(gr.game.ticks()+"/"+gameInfo[1].length)
+
+class updateHandler {
+  private static readonly IS_LAND_BIT = 7;
+  private static readonly SHORELINE_BIT = 6;
+  private static readonly OCEAN_BIT = 5;
+  private static readonly MAGNITUDE_MASK = 0x1f; // 11111 in binary
+
+  // State bits (Uint16Array)
+  private static readonly PLAYER_ID_MASK = 0xfff;
+  private static readonly FALLOUT_BIT = 13;
+  private static readonly DEFENSE_BONUS_BIT = 14;
+
+  constructor() {}
+
+  tileUpdate(packedTileUpdates: Uint32Array) {
+    const tileUpdates: [number, number][] = [];
+    const packed = packedTileUpdates;
+    for (let i = 0; i + 1 < packed.length; i += 2) {
+      const tile = packed[i];
+      const state = packed[i + 1] & 0xffff;
+      const terrainByte = (packed[i + 1] >>> 16) & 0xff;
+      tileUpdates.push([tile, state]);
+    }
+    console.log(tileUpdates);
+  }
+
+  tickHandler(g: GameUpdateViewData | ErrorUpdate) {
+    if (gr.game.ticks() < 1000 || gr.game.ticks() !% turnInterval) return;
+    console.log(
+      gr.game
+        .allPlayers()
+        .filter((p) => {
+          return p.tiles().size > 1000;
+        })
+        .map((p) => {
+          return p.name();
+        }),
+    );
+    //gr.game.map().
+    if ("packedTileUpdates" in g) {
+      this.tileUpdate(g.packedTileUpdates)
+    }
+    console.log(gr.game.ticks() + "/" + gameInfo[1].length);
+  }
 }
 
+const gameUpdateHandler = new updateHandler();
+
 if (gameInfo[0] !== undefined) {
-  gameRunner = createGameRunner(gameInfo[0], undefined, mapLoader, gameUpdate).then((gr) => {return gr;});
+  gameRunner = createGameRunner(
+    gameInfo[0],
+    undefined,
+    mapLoader,
+    gameUpdateHandler.tickHandler,
+  ).then((gr) => {
+    return gr;
+  });
   gr = await gameRunner;
-  console.log(gameInfo[1].length)
+  console.log(gameInfo[1].length);
   for (let turnNum = 0; turnNum < gameInfo[1].length; turnNum++) {
-    const turn = gameInfo[1][turnNum]
-    gr.addTurn(turn)
-    gr.executeNextTick()
+    const turn = gameInfo[1][turnNum];
+    gr.addTurn(turn);
+    gr.executeNextTick();
   }
-  console.log("Done")
+  console.log("Done");
 }
