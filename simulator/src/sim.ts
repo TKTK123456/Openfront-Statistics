@@ -124,6 +124,7 @@ class updateHandler {
         tempMap.set(tile[0], tile[1]);
       }
       this.conquredTilesFullGame.push(tempMap);
+      this.conquredTilesMiddleShort.clear()
     }
     if (
       (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0) &&
