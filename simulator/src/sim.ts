@@ -31,7 +31,7 @@ const PROJECT_ROOT = path.resolve(
   "../OpenFrontIO",
 );
 
-const gameID = "24cQJmGp";
+const gameID = "VbtAVHRu";
 const turnInterval = 100;
 
 function createHeatmap() {}
@@ -116,9 +116,10 @@ class updateHandler {
 
   tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
     if (
-      !gr.game.inSpawnPhase() &&
-      ((turnNum + this.turnInterval / 2 + 1) % this.turnInterval === 0 ||
-        turnNum >= totalTurns - 1)
+      (!gr.game.inSpawnPhase() &&
+        (turnNum + this.turnInterval / 2 + 1) % this.turnInterval === 0) ||
+      turnNum >= totalTurns - 1 ||
+      gr.game.getWinner() !== null
     ) {
       let tempMap = new Map();
       for (let tile of this.conquredTilesMiddleShort.entries()) {
@@ -129,7 +130,8 @@ class updateHandler {
     }
     if (
       (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0) &&
-      turnNum < totalTurns - 1
+      turnNum < totalTurns - 1 &&
+      gr.game.getWinner() == null
     )
       return;
     console.log(turnNum + 1 + "/" + totalTurns);
@@ -168,7 +170,12 @@ if (gameInfo[0] !== undefined) {
   for (turnNum = 0; turnNum < totalTurns; turnNum++) {
     const turn = gameInfo[1][turnNum];
     gr.addTurn(turn);
-    gr.executeNextTick();
+    try {
+      gr.executeNextTick();
+    } catch (e) {
+      console.log(e);
+    }
+    if (gr.game.getWinner() !== null) break;
     if (!wrapped.players && !gr.game.inSpawnPhase()) {
       wrapped.players = true;
       gr.game.allPlayers().map((p) => {
