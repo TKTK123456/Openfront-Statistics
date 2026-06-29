@@ -24,7 +24,6 @@ import {
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
 import { heatmapCreator } from "./heatmap";
 import { PNG } from "pngjs";
-import ffmpeg from "ffmpeg";
 import { exec } from "child_process";
 
 const PROJECT_ROOT = path.resolve(
