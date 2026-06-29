@@ -1,7 +1,7 @@
 import { Game } from "../OpenFrontIO/src/core/game/Game";
 import { MapData } from "../OpenFrontIO/src/core/game/GameMapLoader";
 export class heatmapCreator {
-  private radius = 20;
+  private radius = 10;
   private radiusSq = this.radius ** 2;
   public game: Game;
   public width: number;
@@ -45,7 +45,7 @@ export class heatmapCreator {
     for (const tileFrequency of tileFrequencies.entries()) {
       const x = game.x(tileFrequency[0]);
       const y = game.y(tileFrequency[0]);
-      const value = tileFrequency[1] * 0.1;
+      const value = tileFrequency[1] * 0.01;
       const xStart = Math.max(0, Math.floor(x - radius));
       const xEnd = Math.min(width - 1, Math.ceil(x + radius));
       const yStart = Math.max(0, Math.floor(y - radius));
@@ -57,41 +57,43 @@ export class heatmapCreator {
           const distSq = dx * dx + dy * dy;
           if (distSq > radiusSq) continue;
 
-          const intensity = value * (1 - distSq / radiusSq);
+          const dist = Math.sqrt(distSq);
+          const norm = dist / radius;
+          const intensity = value * Math.exp(-3 * norm * norm);
 
           const idx = py * width + px;
-          heatAlpha[idx] = Math.min(1, heatAlpha[idx] + intensity);
+          heatAlpha[idx] += intensity * (1 - heatAlpha[idx]);
         }
       }
     }
-    const heatmap = new Uint8ClampedArray(width * height * 4);
+    const heatmapData = new Uint8ClampedArray(width * height * 4);
     for (let i = 0; i < width * height; i++) {
       const alpha = heatAlpha[i];
       const [r, g, b, a] = this.interpolateColor(alpha);
 
       const idx = i * 4;
-      heatmap[idx] = r;
-      heatmap[idx + 1] = g;
-      heatmap[idx + 2] = b;
-      heatmap[idx + 3] = a;
+      heatmapData[idx] = r;
+      heatmapData[idx + 1] = g;
+      heatmapData[idx + 2] = b;
+      heatmapData[idx + 3] = a;
     }
-    const background = await this.mapBackground();
-    for (let i = 0; i < heatmap.length; i += 4) {
-      const ha = heatmap[i + 3] / 255;
+    const heatmap = await this.mapBackground();
+    for (let i = 0; i < heatmapData.length; i += 4) {
+      const ha = heatmapData[i + 3] / 255;
       if (ha === 0) continue;
 
       const j = i;
-      const hr = heatmap[j];
-      const hg = heatmap[j + 1];
-      const hb = heatmap[j + 2];
+      const hr = heatmapData[j];
+      const hg = heatmapData[j + 1];
+      const hb = heatmapData[j + 2];
 
-      const br = background[j];
-      const bg = background[j + 1];
-      const bb = background[j + 2];
+      const br = heatmap[j];
+      const bg = heatmap[j + 1];
+      const bb = heatmap[j + 2];
 
-      background[j] = Math.round(hr * ha + br * (1 - ha));
-      background[j + 1] = Math.round(hg * ha + bg * (1 - ha));
-      background[j + 2] = Math.round(hb * ha + bb * (1 - ha));
+      heatmap[j] = Math.round(hr * ha + br * (1 - ha));
+      heatmap[j + 1] = Math.round(hg * ha + bg * (1 - ha));
+      heatmap[j + 2] = Math.round(hb * ha + bb * (1 - ha));
     }
     return heatmap;
   }

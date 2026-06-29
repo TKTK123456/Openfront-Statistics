@@ -100,29 +100,32 @@ class updateHandler {
 
   conquredTilesShort: Map<number, number> = new Map();
   conquredTilesFullGame: Map<number, number>[] = [];
+  conquredTilesMiddleShort: Map<number, number>[] = [];
 
   conquredTile(tile: number) {
     this.conquredTilesShort.set(
       tile,
       (this.conquredTilesShort.get(tile) ?? 0) + 1,
     );
+    
   }
 
   tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
+    if (!gr.game.inSpawnPhase() && ((turnNum+(this.turnInterval/2)+1) % this.turnInterval === 0 || turnNum >= totalTurns-1)) {
+
+    }
     if (
-      (gr.game.inSpawnPhase() || (turnNum + 1)! % this.turnInterval) &&
+      (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0 ) &&
       turnNum < totalTurns - 1
     )
       return;
     console.log(turnNum + 1 + "/" + totalTurns);
-    if ((turnNum + 1) % 1000 || turnNum >= totalTurns - 1) {
-      let tempMap = new Map();
-      for (let tile of this.conquredTilesShort.entries()) {
-        tempMap.set(tile[0], tile[1]);
-      }
-      this.conquredTilesFullGame.push(tempMap);
-      this.conquredTilesShort.clear();
+    let tempMap = new Map();
+    for (let tile of this.conquredTilesShort.entries()) {
+      tempMap.set(tile[0], tile[1]);
     }
+    this.conquredTilesFullGame.push(tempMap);
+    this.conquredTilesShort.clear();
   }
 }
 
@@ -164,33 +167,36 @@ if (gameInfo[0] !== undefined) {
       });
     }
   }
-  const heatmapFile = new PNG({
-    width: gr.game.width(),
-    height: gr.game.height(),
-  });
-  let lastI = -1;
-  for (
-    let i = 0, lastI = -1;
-    i < gameUpdateHandler.conquredTilesFullGame.length;
-  ) {
-    let lastI = i;
+  let heatmapFolderPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    `../out/${gameID}/`,
+  );
+  fs.mkdirSync(heatmapFolderPath, { recursive: true });
+  for (let i = 0; i < gameUpdateHandler.conquredTilesFullGame.length; i++) {
     const heatmapData = await heatmapMaker.create(
       gameUpdateHandler.conquredTilesFullGame[i],
     );
-    heatmapFile.data.set(heatmapData);
+    const png = new PNG({
+      width: gr.game.width(),
+      height: gr.game.height(),
+    });
+    png.data.set(heatmapData);
     let heatmapFilePath = path.join(
-      path.dirname(fileURLToPath(import.meta.url)),
-      `../out/${gameID}-${i}.png`,
+      heatmapFolderPath,
+      `${i}.png`,
     );
     fs.writeFileSync(heatmapFilePath, "");
-    const fileWait = heatmapFile
-      .pack()
-      .pipe(fs.createWriteStream(heatmapFilePath))
-    //fileWait.on("finish", function () {
-    //  i++;
-    //  console.log(`Written ${gameID}-${i}.png`);
-    //}).close(()=>console.log(i));
-    //while ((lastI = i));
+
+    png.data.set(heatmapData);
+
+    await new Promise<void>((resolve, reject) => {
+      png
+        .pack()
+        .pipe(fs.createWriteStream(heatmapFilePath))
+        .on("finish", () => resolve())
+        .on("error", reject);
+    });
+    console.log(`Created ${gameID}/${i}.png`);
   }
   console.log("Done");
 }
