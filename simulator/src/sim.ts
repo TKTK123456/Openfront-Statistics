@@ -24,6 +24,8 @@ import {
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
 import { heatmapCreator } from "./heatmap";
 import { PNG } from "pngjs";
+import ffmpeg from "ffmpeg";
+import { exec } from "child_process";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -124,7 +126,7 @@ class updateHandler {
         tempMap.set(tile[0], tile[1]);
       }
       this.conquredTilesFullGame.push(tempMap);
-      this.conquredTilesMiddleShort.clear()
+      this.conquredTilesMiddleShort.clear();
     }
     if (
       (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0) &&
@@ -193,7 +195,10 @@ if (gameInfo[0] !== undefined) {
       height: gr.game.height(),
     });
     png.data.set(heatmapData);
-    let heatmapFilePath = path.join(heatmapFolderPath, `${i}.png`);
+    let heatmapFilePath = path.join(
+      heatmapFolderPath,
+      `${String(i).padStart(4, "0")}.png`,
+    );
     fs.writeFileSync(heatmapFilePath, "");
 
     png.data.set(heatmapData);
@@ -207,5 +212,13 @@ if (gameInfo[0] !== undefined) {
     });
     console.log(`Created ${gameID}/${i}.png`);
   }
+  exec(
+    `ffmpeg -y -framerate 10 -i ${heatmapFolderPath}%04d.png -c:v libx264 -pix_fmt yuv420p ${heatmapFolderPath}output.mp4`,
+    (err, stdout, stderr) => {
+      console.log(stdout);
+      if (err) console.error(err);
+      else console.log("Video created!");
+    },
+  );
   console.log("Done");
 }
