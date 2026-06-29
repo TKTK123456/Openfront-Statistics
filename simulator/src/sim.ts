@@ -100,22 +100,33 @@ class updateHandler {
 
   conquredTilesShort: Map<number, number> = new Map();
   conquredTilesFullGame: Map<number, number>[] = [];
-  conquredTilesMiddleShort: Map<number, number>[] = [];
+  conquredTilesMiddleShort: Map<number, number> = new Map();
 
   conquredTile(tile: number) {
     this.conquredTilesShort.set(
       tile,
       (this.conquredTilesShort.get(tile) ?? 0) + 1,
     );
-    
+    this.conquredTilesMiddleShort.set(
+      tile,
+      (this.conquredTilesMiddleShort.get(tile) ?? 0) + 1,
+    );
   }
 
   tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
-    if (!gr.game.inSpawnPhase() && ((turnNum+(this.turnInterval/2)+1) % this.turnInterval === 0 || turnNum >= totalTurns-1)) {
-
+    if (
+      !gr.game.inSpawnPhase() &&
+      ((turnNum + this.turnInterval / 2 + 1) % this.turnInterval === 0 ||
+        turnNum >= totalTurns - 1)
+    ) {
+      let tempMap = new Map();
+      for (let tile of this.conquredTilesMiddleShort.entries()) {
+        tempMap.set(tile[0], tile[1]);
+      }
+      this.conquredTilesFullGame.push(tempMap);
     }
     if (
-      (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0 ) &&
+      (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0) &&
       turnNum < totalTurns - 1
     )
       return;
@@ -181,10 +192,7 @@ if (gameInfo[0] !== undefined) {
       height: gr.game.height(),
     });
     png.data.set(heatmapData);
-    let heatmapFilePath = path.join(
-      heatmapFolderPath,
-      `${i}.png`,
-    );
+    let heatmapFilePath = path.join(heatmapFolderPath, `${i}.png`);
     fs.writeFileSync(heatmapFilePath, "");
 
     png.data.set(heatmapData);
