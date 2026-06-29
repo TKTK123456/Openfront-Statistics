@@ -9,7 +9,7 @@ import {
   TurnSchema,
 } from "../OpenFrontIO/src/core/Schemas";
 import { MapManifest } from "../OpenFrontIO/src/core/game/TerrainMapLoader";
-import { GameMapType } from "../OpenFrontIO/src/core/game/Game";
+import { GameMapSize, GameMapType } from "../OpenFrontIO/src/core/game/Game";
 import {
   GameMapLoader,
   MapData,
@@ -22,16 +22,18 @@ import {
   GameUpdateViewData,
 } from "../OpenFrontIO/src/core/game/GameUpdates";
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
-import { TileRef } from "../OpenFrontIO/src/core/game/GameMap";
-import { GameImpl } from "../OpenFrontIO/src/core/game/GameImpl";
+import { heatmapCreator } from "./heatmap";
+import { PNG } from "pngjs";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../OpenFrontIO",
 );
 
-const gameID = "rJTLpUjY";
+const gameID = "24cQJmGp";
 const turnInterval = 100;
+
+function createHeatmap() {}
 
 async function fetchGame(
   id: string,
@@ -44,7 +46,7 @@ async function fetchGame(
 }
 
 const gameInfo = await fetchGame(gameID);
-//console.log(gameInfo)
+const totalTurns = gameInfo[1].length;
 
 class gameMapLoader implements GameMapLoader {
   constructor(private mapsDir: string) {}
@@ -75,12 +77,7 @@ const mapLoader = new gameMapLoader(path.join(PROJECT_ROOT, "/resources/maps"));
 let gameRunner: Promise<GameRunner> | null = null;
 let gr: GameRunner;
 
-interface updateHandlerInterface {
-  ownerId(state: number): number;
-  tileUpdate(packedTileUpdates: Uint32Array): void;
-  tickHandler(g: GameUpdateViewData | ErrorUpdate): void;
-}
-
+let heatmapMaker: heatmapCreator;
 class updateHandler {
   private static readonly IS_LAND_BIT = 7;
   private static readonly SHORELINE_BIT = 6;
@@ -101,37 +98,36 @@ class updateHandler {
     return state & updateHandler.PLAYER_ID_MASK;
   }
 
-  conquredTiles: Map<number, number> = new Map()
+  conquredTilesShort: Map<number, number> = new Map();
+  conquredTilesFullGame: Map<number, number>[] = [];
 
   conquredTile(tile: number) {
-    if (this.conquredTiles.has(tile)) {
-      let frequency = this.conquredTiles.get(tile)
-      if (frequency === undefined) return;
-      this.conquredTiles.set(tile, frequency+1)
-    } else {
-      this.conquredTiles.set(tile, 1)
-    }
+    this.conquredTilesShort.set(
+      tile,
+      (this.conquredTilesShort.get(tile) ?? 0) + 1,
+    );
   }
 
   tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
-    if (gr.game.inSpawnPhase() || gr.game.ticks()! % this.turnInterval) return;
-    console.log(
-      gr.game
-        .allPlayers()
-        .filter((p) => {
-          return p.tiles().size > 1000;
-        })
-        .map((p) => {
-          return p.name();
-        }),
-    );
-    console.log(this.conquredTiles)
-
-    this.conquredTiles.clear();
-    console.log(gr.game.ticks() + "/" + gameInfo[1].length);
+    if (
+      (gr.game.inSpawnPhase() || (turnNum + 1)! % this.turnInterval) &&
+      turnNum < totalTurns - 1
+    )
+      return;
+    console.log(turnNum + 1 + "/" + totalTurns);
+    if ((turnNum + 1) % 1000 || turnNum >= totalTurns - 1) {
+      let tempMap = new Map();
+      for (let tile of this.conquredTilesShort.entries()) {
+        tempMap.set(tile[0], tile[1]);
+      }
+      this.conquredTilesFullGame.push(tempMap);
+      this.conquredTilesShort.clear();
+    }
   }
 }
+
 const gameUpdateHandler = new updateHandler(turnInterval);
+let turnNum = 0;
 
 if (gameInfo[0] !== undefined) {
   gameRunner = createGameRunner(
@@ -143,20 +139,58 @@ if (gameInfo[0] !== undefined) {
     return gr;
   });
   gr = await gameRunner;
-  console.log(gameInfo[1].length);
-  for (let turnNum = 0; turnNum < gameInfo[1].length; turnNum++) {
+  console.log(totalTurns);
+  let wrapped = {
+    players: false,
+  };
+  const map = mapLoader.getMapData(gameInfo[0].config.gameMap);
+  heatmapMaker = new heatmapCreator(
+    map,
+    gr.game,
+    gameInfo[0].config.gameMapSize === GameMapSize.Compact,
+  );
+  for (turnNum = 0; turnNum < totalTurns; turnNum++) {
     const turn = gameInfo[1][turnNum];
     gr.addTurn(turn);
     gr.executeNextTick();
-    if (!gr.game.inSpawnPhase()) {
-      gr.game.allPlayers().map(p=>{
-    const oldConquer = p.conquer.bind(p)
-    p.conquer = function(tile: number) {
-      gameUpdateHandler.conquredTile(tile)
-      return oldConquer(tile)
+    if (!wrapped.players && !gr.game.inSpawnPhase()) {
+      wrapped.players = true;
+      gr.game.allPlayers().map((p) => {
+        const oldConquer = p.conquer.bind(p);
+        p.conquer = function (tile: number) {
+          gameUpdateHandler.conquredTile(tile);
+          return oldConquer(tile);
+        };
+      });
     }
-  })
-    }
+  }
+  const heatmapFile = new PNG({
+    width: gr.game.width(),
+    height: gr.game.height(),
+  });
+  let lastI = -1;
+  for (
+    let i = 0, lastI = -1;
+    i < gameUpdateHandler.conquredTilesFullGame.length;
+  ) {
+    let lastI = i;
+    const heatmapData = await heatmapMaker.create(
+      gameUpdateHandler.conquredTilesFullGame[i],
+    );
+    heatmapFile.data.set(heatmapData);
+    let heatmapFilePath = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      `../out/${gameID}-${i}.png`,
+    );
+    fs.writeFileSync(heatmapFilePath, "");
+    const fileWait = heatmapFile
+      .pack()
+      .pipe(fs.createWriteStream(heatmapFilePath))
+    //fileWait.on("finish", function () {
+    //  i++;
+    //  console.log(`Written ${gameID}-${i}.png`);
+    //}).close(()=>console.log(i));
+    //while ((lastI = i));
   }
   console.log("Done");
 }

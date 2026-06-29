@@ -1,0 +1,129 @@
+import { Game } from "../OpenFrontIO/src/core/game/Game";
+import { MapData } from "../OpenFrontIO/src/core/game/GameMapLoader";
+export class heatmapCreator {
+  private radius = 20;
+  private radiusSq = this.radius ** 2;
+  public game: Game;
+  public width: number;
+  public height: number;
+  public map: MapData;
+  public compact: boolean;
+  constructor(map: MapData, game: Game, compact: boolean) {
+    this.game = game;
+    this.width = game.width();
+    this.height = game.height();
+    this.map = map;
+    this.compact = compact;
+  }
+
+  async mapBackground() {
+    const width = this.width;
+    const height = this.height;
+    const radius = this.radius;
+    const mapArray = await (this.compact
+      ? this.map.map4xBin()
+      : this.map.mapBin());
+    const background = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < mapArray.length; i++) {
+      const v = mapArray[i];
+      const j = i * 4;
+      background[j] = v;
+      background[j + 1] = v;
+      background[j + 2] = v;
+      background[j + 3] = 255;
+    }
+    return background;
+  }
+
+  async create(tileFrequencies: Map<number, number>) {
+    const game = this.game;
+    const width = this.width;
+    const height = this.height;
+    const radius = this.radius;
+    const radiusSq = this.radiusSq;
+    const heatAlpha = new Float32Array(width * height);
+    for (const tileFrequency of tileFrequencies.entries()) {
+      const x = game.x(tileFrequency[0]);
+      const y = game.y(tileFrequency[0]);
+      const value = tileFrequency[1] * 0.1;
+      const xStart = Math.max(0, Math.floor(x - radius));
+      const xEnd = Math.min(width - 1, Math.ceil(x + radius));
+      const yStart = Math.max(0, Math.floor(y - radius));
+      const yEnd = Math.min(height - 1, Math.ceil(y + radius));
+      for (let py = yStart; py <= yEnd; py++) {
+        for (let px = xStart; px <= xEnd; px++) {
+          const dx = px - x;
+          const dy = py - y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq > radiusSq) continue;
+
+          const intensity = value * (1 - distSq / radiusSq);
+
+          const idx = py * width + px;
+          heatAlpha[idx] = Math.min(1, heatAlpha[idx] + intensity);
+        }
+      }
+    }
+    const heatmap = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < width * height; i++) {
+      const alpha = heatAlpha[i];
+      const [r, g, b, a] = this.interpolateColor(alpha);
+
+      const idx = i * 4;
+      heatmap[idx] = r;
+      heatmap[idx + 1] = g;
+      heatmap[idx + 2] = b;
+      heatmap[idx + 3] = a;
+    }
+    const background = await this.mapBackground();
+    for (let i = 0; i < heatmap.length; i += 4) {
+      const ha = heatmap[i + 3] / 255;
+      if (ha === 0) continue;
+
+      const j = i;
+      const hr = heatmap[j];
+      const hg = heatmap[j + 1];
+      const hb = heatmap[j + 2];
+
+      const br = background[j];
+      const bg = background[j + 1];
+      const bb = background[j + 2];
+
+      background[j] = Math.round(hr * ha + br * (1 - ha));
+      background[j + 1] = Math.round(hg * ha + bg * (1 - ha));
+      background[j + 2] = Math.round(hb * ha + bb * (1 - ha));
+    }
+    return heatmap;
+  }
+  private lerp(a: number, b: number, t: number) {
+    return a + (b - a) * t;
+  }
+  private interpolateColor(t: number) {
+    const gradient = [
+      { stop: 0, color: [0, 0, 255, 0] }, // transparent blue
+      { stop: 0.3, color: [0, 0, 255, 255] }, // blue
+      { stop: 0.5, color: [0, 255, 255, 255] }, // cyan
+      { stop: 0.7, color: [0, 255, 0, 255] }, // lime
+      { stop: 1, color: [255, 0, 0, 255] }, // red
+    ];
+    t = Math.max(0, Math.min(1, t));
+    let start = gradient[0];
+    let end = gradient[gradient.length - 1];
+    for (let i = 0; i < gradient.length - 1; i++) {
+      if (t >= gradient[i].stop && t <= gradient[i + 1].stop) {
+        start = gradient[i];
+        end = gradient[i + 1];
+        break;
+      }
+    }
+    const localT = (t - start.stop) / (end.stop - start.stop);
+
+    // Interpolate each channel
+    const r = Math.round(this.lerp(start.color[0], end.color[0], localT));
+    const g = Math.round(this.lerp(start.color[1], end.color[1], localT));
+    const b = Math.round(this.lerp(start.color[2], end.color[2], localT));
+    const a = Math.round(this.lerp(start.color[3], end.color[3], localT));
+
+    return [r, g, b, a];
+  }
+}
