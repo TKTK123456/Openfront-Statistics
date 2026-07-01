@@ -29,7 +29,7 @@ const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../OpenFrontIO",
 );
-let outFolder = path.join(path.dirname(fileURLToPath(import.meta.url)), `/out`);
+let outFolder = path.join(path.dirname(fileURLToPath(import.meta.url)), `../out`);
 const gameID = "24cQJmGp";
 const turnInterval = 100;
 
@@ -199,7 +199,7 @@ if (gameInfo[0] !== undefined) {
     if (heatmapData) videoData.push(heatmapData);
   }
   encodeVideo(
-    `${heatmapFilePath}output.mp4`,
+    `${heatmapFilePath}`,
     videoData,
     gr.game.width(),
     gr.game.height(),
