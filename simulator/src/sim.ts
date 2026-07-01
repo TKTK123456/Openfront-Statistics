@@ -29,7 +29,7 @@ const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../OpenFrontIO",
 );
-
+let outFolder = path.join(path.dirname(fileURLToPath(import.meta.url)), `/out`);
 const gameID = "24cQJmGp";
 const turnInterval = 100;
 
@@ -186,11 +186,8 @@ if (gameInfo[0] !== undefined) {
       });
     }
   }
-  let heatmapFolderPath = path.join(
-    path.dirname(fileURLToPath(import.meta.url)),
-    `../out/${gameID}/`,
-  );
-  fs.mkdirSync(heatmapFolderPath, { recursive: true });
+  let heatmapFilePath = path.join(outFolder, `${gameID}.mp4`);
+  fs.mkdirSync(outFolder, { recursive: true });
   const videoData: Uint8ClampedArray[] = [];
   for (let i = 0; i < gameUpdateHandler.conquredTilesFullGame.length; i++) {
     const heatmapData = await heatmapMaker.create(
@@ -202,7 +199,7 @@ if (gameInfo[0] !== undefined) {
     if (heatmapData) videoData.push(heatmapData);
   }
   encodeVideo(
-    `${heatmapFolderPath}output.mp4`,
+    `${heatmapFilePath}output.mp4`,
     videoData,
     gr.game.width(),
     gr.game.height(),
