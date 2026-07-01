@@ -41,7 +41,7 @@ export class heatmapCreator {
     return background;
   }
 
-  async create(tileFrequencies: Map<number, number>) {
+  async create(tileFrequencies: Map<number, number>, frequencyWorth = 0.01) {
     if (tileFrequencies.size === 0) return await this.mapBackground();
     const game = this.game;
     const width = this.width;
@@ -52,7 +52,7 @@ export class heatmapCreator {
     for (const tileFrequency of tileFrequencies.entries()) {
       const x = game.x(tileFrequency[0]);
       const y = game.y(tileFrequency[0]);
-      const value = tileFrequency[1] * 0.01;
+      const value = tileFrequency[1] * frequencyWorth;
       const xStart = Math.max(0, Math.floor(x - radius));
       const xEnd = Math.min(width - 1, Math.ceil(x + radius));
       const yStart = Math.max(0, Math.floor(y - radius));

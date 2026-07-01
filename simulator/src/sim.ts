@@ -24,12 +24,16 @@ import {
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
 import { heatmapCreator } from "./heatmap";
 import { encodeVideo } from "./encode";
+import { PNG } from "pngjs";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../OpenFrontIO",
 );
-let outFolder = path.join(path.dirname(fileURLToPath(import.meta.url)), `../out`);
+let outFolder = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  `../out`,
+);
 const gameID = "24cQJmGp";
 const turnInterval = 100;
 
@@ -98,6 +102,7 @@ class updateHandler {
     return state & updateHandler.PLAYER_ID_MASK;
   }
 
+  conquredTilesTotal: Map<number, number> = new Map();
   conquredTilesShort: Map<number, number> = new Map();
   conquredTilesFullGame: Map<number, number>[] = [];
   conquredTilesMiddleShort: Map<number, number> = new Map();
@@ -110,6 +115,10 @@ class updateHandler {
     this.conquredTilesMiddleShort.set(
       tile,
       (this.conquredTilesMiddleShort.get(tile) ?? 0) + 1,
+    );
+    this.conquredTilesTotal.set(
+      tile,
+      (this.conquredTilesTotal.get(tile) ?? 0) + 1,
     );
   }
 
@@ -189,6 +198,24 @@ if (gameInfo[0] !== undefined) {
   let heatmapFilePath = path.join(outFolder, `${gameID}.mp4`);
   fs.mkdirSync(outFolder, { recursive: true });
   const videoData: Uint8ClampedArray[] = [];
+  const heatmapData = await heatmapMaker.create(
+    gameUpdateHandler.conquredTilesTotal, 0.001
+  );
+  if (heatmapData) {
+    const png = new PNG({
+      width: gr.game.width(),
+      height: gr.game.height(),
+    });
+    png.data.set(heatmapData);
+
+    await new Promise<void>((resolve, reject) => {
+      png
+        .pack()
+        .pipe(fs.createWriteStream(heatmapFilePath + ".png"))
+        .on("finish", () => resolve())
+        .on("error", reject);
+    });
+  }
   for (let i = 0; i < gameUpdateHandler.conquredTilesFullGame.length; i++) {
     const heatmapData = await heatmapMaker.create(
       gameUpdateHandler.conquredTilesFullGame[i],
