@@ -21,7 +21,6 @@
         "@eslint/js": "^9.31.0",
         "@types/node": "^22.16.5",
         "@types/pg": "^8.15.4",
-        "@types/pngjs": "^6.0.5",
         "@types/ws": "^8.18.1",
         "@unrs/resolver-binding-linux-x64-gnu": "^1.11.1",
         "chai": "^5.2.1",
@@ -32,10 +31,10 @@
         "intl-messageformat": "^11.0.7",
         "jest-fetch-mock": "^3.0.3",
         "nanoid": "^5.1.5",
+        "node-av": "^6.1.0",
         "obscenity": "^0.4.3",
         "pg": "^8.16.3",
         "pg-format": "^1.0.4",
-        "pngjs": "^7.0.0",
         "seedrandom": "^3.0.5",
         "sharp": "^0.34.2",
         "tsx": "^4.22.3",
@@ -55,5 +54,8 @@
     "trustedDependencies": [
         "openfront-client",
         "protobufjs"
-    ]
+    ],
+    "allowScripts": {
+        "node-av@6.1.0": true
+    }
 }

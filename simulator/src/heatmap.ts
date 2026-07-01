@@ -16,11 +16,16 @@ export class heatmapCreator {
     this.compact = compact;
   }
 
+  private backGroundCache: Map<string, Uint8ClampedArray> = new Map();
   async mapBackground() {
+    const mapName = (await this.map.manifest()).name;
+    if (this.backGroundCache.has(mapName)) {
+      return this.backGroundCache.get(mapName);
+    }
     const width = this.width;
     const height = this.height;
     const radius = this.radius;
-    const mapArray = await (this.compact
+    let mapArray = await (this.compact
       ? this.map.map4xBin()
       : this.map.mapBin());
     const background = new Uint8ClampedArray(width * height * 4);
@@ -32,10 +37,12 @@ export class heatmapCreator {
       background[j + 2] = v;
       background[j + 3] = 255;
     }
+    this.backGroundCache.set(mapName, background);
     return background;
   }
 
   async create(tileFrequencies: Map<number, number>) {
+    if (tileFrequencies.size === 0) return await this.mapBackground();
     const game = this.game;
     const width = this.width;
     const height = this.height;
@@ -77,23 +84,29 @@ export class heatmapCreator {
       heatmapData[idx + 2] = b;
       heatmapData[idx + 3] = a;
     }
-    const heatmap = await this.mapBackground();
+    const background = await this.mapBackground();
+    if (!background) return;
+    const heatmap = new Uint8ClampedArray(width * height * 4);
     for (let i = 0; i < heatmapData.length; i += 4) {
       const ha = heatmapData[i + 3] / 255;
-      if (ha === 0) continue;
 
-      const j = i;
-      const hr = heatmapData[j];
-      const hg = heatmapData[j + 1];
-      const hb = heatmapData[j + 2];
-
-      const br = heatmap[j];
-      const bg = heatmap[j + 1];
-      const bb = heatmap[j + 2];
-
-      heatmap[j] = Math.round(hr * ha + br * (1 - ha));
-      heatmap[j + 1] = Math.round(hg * ha + bg * (1 - ha));
-      heatmap[j + 2] = Math.round(hb * ha + bb * (1 - ha));
+      const br = background[i];
+      const bg = background[i + 1];
+      const bb = background[i + 2];
+      if (ha === 0) {
+        heatmap[i] = br;
+        heatmap[i + 1] = bg;
+        heatmap[i + 2] = bb;
+        heatmap[i + 3] = 255;
+        continue;
+      }
+      const hr = heatmapData[i];
+      const hg = heatmapData[i + 1];
+      const hb = heatmapData[i + 2];
+      heatmap[i] = Math.round(hr * ha + br * (1 - ha));
+      heatmap[i + 1] = Math.round(hg * ha + bg * (1 - ha));
+      heatmap[i + 2] = Math.round(hb * ha + bb * (1 - ha));
+      heatmap[i + 3] = 255;
     }
     return heatmap;
   }

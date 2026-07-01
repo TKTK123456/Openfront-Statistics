@@ -23,15 +23,14 @@ import {
 } from "../OpenFrontIO/src/core/game/GameUpdates";
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
 import { heatmapCreator } from "./heatmap";
-import { PNG } from "pngjs";
-import { exec } from "child_process";
+import { encodeVideo } from "./encode";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../OpenFrontIO",
 );
 
-const gameID = "VbtAVHRu";
+const gameID = "24cQJmGp";
 const turnInterval = 100;
 
 function createHeatmap() {}
@@ -192,39 +191,22 @@ if (gameInfo[0] !== undefined) {
     `../out/${gameID}/`,
   );
   fs.mkdirSync(heatmapFolderPath, { recursive: true });
+  const videoData: Uint8ClampedArray[] = [];
   for (let i = 0; i < gameUpdateHandler.conquredTilesFullGame.length; i++) {
     const heatmapData = await heatmapMaker.create(
       gameUpdateHandler.conquredTilesFullGame[i],
     );
-    const png = new PNG({
-      width: gr.game.width(),
-      height: gr.game.height(),
-    });
-    png.data.set(heatmapData);
-    let heatmapFilePath = path.join(
-      heatmapFolderPath,
-      `${String(i).padStart(4, "0")}.png`,
+    console.log(
+      `Created heatmap ${i + 1}/${gameUpdateHandler.conquredTilesFullGame.length}`,
     );
-    fs.writeFileSync(heatmapFilePath, "");
-
-    png.data.set(heatmapData);
-
-    await new Promise<void>((resolve, reject) => {
-      png
-        .pack()
-        .pipe(fs.createWriteStream(heatmapFilePath))
-        .on("finish", () => resolve())
-        .on("error", reject);
-    });
-    console.log(`Created ${gameID}/${i}.png`);
+    if (heatmapData) videoData.push(heatmapData);
   }
-  exec(
-    `ffmpeg -y -framerate 10 -i ${heatmapFolderPath}%04d.png -c:v libx264 -pix_fmt yuv420p ${heatmapFolderPath}output.mp4`,
-    (err, stdout, stderr) => {
-      console.log(stdout);
-      if (err) console.error(err);
-      else console.log("Video created!");
-    },
+  encodeVideo(
+    `${heatmapFolderPath}output.mp4`,
+    videoData,
+    gr.game.width(),
+    gr.game.height(),
+    10,
   );
   console.log("Done");
 }
