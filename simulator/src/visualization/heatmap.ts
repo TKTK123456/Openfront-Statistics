@@ -1,5 +1,5 @@
-import { Game } from "../OpenFrontIO/src/core/game/Game";
-import { MapData } from "../OpenFrontIO/src/core/game/GameMapLoader";
+import { Game } from "../../OpenFrontIO/src/core/game/Game";
+import { MapData } from "../../OpenFrontIO/src/core/game/GameMapLoader";
 export class heatmapCreator {
   private radius = 10;
   private radiusSq = this.radius ** 2;

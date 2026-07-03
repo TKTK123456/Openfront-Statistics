@@ -22,9 +22,10 @@ import {
   GameUpdateViewData,
 } from "../OpenFrontIO/src/core/game/GameUpdates";
 import { decompressGameRecord } from "../OpenFrontIO/src/core/Util";
-import { heatmapCreator } from "./heatmap";
-import { encodeVideo } from "./encode";
+import { heatmapCreator } from "./visualization/heatmap";
+import { encodeVideo } from "./visualization/encode";
 import { PNG } from "pngjs";
+import { TileConquredHandler } from "./sims/conquredTiles";
 
 const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -34,10 +35,8 @@ let outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   `../out`,
 );
-const gameID = "24cQJmGp";
+const gameID = "kgQ2yuYJ";
 const turnInterval = 100;
-
-function createHeatmap() {}
 
 async function fetchGame(
   id: string,
@@ -82,89 +81,27 @@ let gameRunner: Promise<GameRunner> | null = null;
 let gr: GameRunner;
 
 let heatmapMaker: heatmapCreator;
-class updateHandler {
-  private static readonly IS_LAND_BIT = 7;
-  private static readonly SHORELINE_BIT = 6;
-  private static readonly OCEAN_BIT = 5;
-  private static readonly MAGNITUDE_MASK = 0x1f; // 11111 in binary
 
-  // State bits (Uint16Array)
-  private static readonly PLAYER_ID_MASK = 0xfff;
-  private static readonly FALLOUT_BIT = 13;
-  private static readonly DEFENSE_BONUS_BIT = 14;
-  public turnInterval: number;
-
-  constructor(turnInterval: number) {
-    this.turnInterval = turnInterval;
-  }
-
-  ownerId(state: number): number {
-    return state & updateHandler.PLAYER_ID_MASK;
-  }
-
-  conquredTilesTotal: Map<number, number> = new Map();
-  conquredTilesShort: Map<number, number> = new Map();
-  conquredTilesFullGame: Map<number, number>[] = [];
-  conquredTilesMiddleShort: Map<number, number> = new Map();
-
-  conquredTile(tile: number) {
-    this.conquredTilesShort.set(
-      tile,
-      (this.conquredTilesShort.get(tile) ?? 0) + 1,
-    );
-    this.conquredTilesMiddleShort.set(
-      tile,
-      (this.conquredTilesMiddleShort.get(tile) ?? 0) + 1,
-    );
-    this.conquredTilesTotal.set(
-      tile,
-      (this.conquredTilesTotal.get(tile) ?? 0) + 1,
-    );
-  }
-
-  tickHandler(g: GameUpdateViewData | ErrorUpdate): void {
-    if (
-      (!gr.game.inSpawnPhase() &&
-        (turnNum + this.turnInterval / 2 + 1) % this.turnInterval === 0) ||
-      turnNum >= totalTurns - 1 ||
-      gr.game.getWinner() !== null
-    ) {
-      let tempMap = new Map();
-      for (let tile of this.conquredTilesMiddleShort.entries()) {
-        tempMap.set(tile[0], tile[1]);
-      }
-      this.conquredTilesFullGame.push(tempMap);
-      this.conquredTilesMiddleShort.clear();
-    }
-    if (
-      (gr.game.inSpawnPhase() || (turnNum + 1) % this.turnInterval !== 0) &&
-      turnNum < totalTurns - 1 &&
-      gr.game.getWinner() == null
-    )
-      return;
-    console.log(turnNum + 1 + "/" + totalTurns);
-    let tempMap = new Map();
-    for (let tile of this.conquredTilesShort.entries()) {
-      tempMap.set(tile[0], tile[1]);
-    }
-    this.conquredTilesFullGame.push(tempMap);
-    this.conquredTilesShort.clear();
-  }
-}
-
-const gameUpdateHandler = new updateHandler(turnInterval);
+let tileConquredHandler: TileConquredHandler;
 let turnNum = 0;
 
 if (gameInfo[0] !== undefined) {
+  const handleGameUpdate = (g: GameUpdateViewData | ErrorUpdate) => {
+    if (tileConquredHandler) {
+      tileConquredHandler.tickHandler(g, turnNum);
+    }
+    return null;
+  };
   gameRunner = createGameRunner(
     gameInfo[0],
     undefined,
     mapLoader,
-    gameUpdateHandler.tickHandler.bind(gameUpdateHandler),
+    handleGameUpdate,
   ).then((gr) => {
     return gr;
   });
   gr = await gameRunner;
+  tileConquredHandler = new TileConquredHandler(turnInterval, gr, totalTurns);
   console.log(totalTurns);
   let wrapped = {
     players: false,
@@ -189,7 +126,7 @@ if (gameInfo[0] !== undefined) {
       gr.game.allPlayers().map((p) => {
         const oldConquer = p.conquer.bind(p);
         p.conquer = function (tile: number) {
-          gameUpdateHandler.conquredTile(tile);
+          tileConquredHandler.conquredTile(tile);
           return oldConquer(tile);
         };
       });
@@ -199,7 +136,8 @@ if (gameInfo[0] !== undefined) {
   fs.mkdirSync(outFolder, { recursive: true });
   const videoData: Uint8ClampedArray[] = [];
   const heatmapData = await heatmapMaker.create(
-    gameUpdateHandler.conquredTilesTotal, 0.001
+    tileConquredHandler.conquredTilesTotal,
+    0.001,
   );
   if (heatmapData) {
     const png = new PNG({
@@ -216,12 +154,12 @@ if (gameInfo[0] !== undefined) {
         .on("error", reject);
     });
   }
-  for (let i = 0; i < gameUpdateHandler.conquredTilesFullGame.length; i++) {
+  for (let i = 0; i < tileConquredHandler.conquredTilesFullGame.length; i++) {
     const heatmapData = await heatmapMaker.create(
-      gameUpdateHandler.conquredTilesFullGame[i],
+      tileConquredHandler.conquredTilesFullGame[i],
     );
     console.log(
-      `Created heatmap ${i + 1}/${gameUpdateHandler.conquredTilesFullGame.length}`,
+      `Created heatmap ${i + 1}/${tileConquredHandler.conquredTilesFullGame.length}`,
     );
     if (heatmapData) videoData.push(heatmapData);
   }

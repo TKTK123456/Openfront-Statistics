@@ -25,7 +25,7 @@
   "include": [
     "OpenFrontIO/src/**/*",
     "OpenFrontIO/resources/**/*",
-    "src/*"
-  ],
+    "src/**/*"
+, "src/visualization/heatmap.ts"  ],
   "exclude": ["node_modules"]
 }
