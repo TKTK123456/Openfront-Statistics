@@ -4,7 +4,7 @@ import {
 } from "../../OpenFrontIO/src/core/game/GameUpdates";
 import { GameRunner } from "../../OpenFrontIO/src/core/GameRunner";
 
-export class TileConquredHandler {
+export class TileConqueredHandler {
   public turnInterval: number;
   public gr: GameRunner;
   public totalTurns: number;
@@ -63,5 +63,5 @@ export class TileConquredHandler {
     }
     this.conqueredTilesFullGame.push(tempMap);
     this.conqueredTilesShort.clear();
-  }
+  };
 }

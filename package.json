@@ -9,7 +9,8 @@
         "generate-nix": "bun2nix > bun.nix",
         "format": "prettier --write 'src/**/*.{ts,tsx,js,jsx}'",
         "lint": "eslint src --fix",
-        "test": "npx tsx src/test.ts"
+        "test": "npx tsx src/test.ts",
+        "analysis": "npx tsx src/analysis.ts"
     },
     "module": "src/ListGames.ts",
     "type": "module",

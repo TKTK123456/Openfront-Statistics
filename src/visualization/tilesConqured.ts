@@ -1,4 +1,4 @@
-import { TileConquredHandler } from "src/handlers/conqueredTiles";
+import { TileConqueredHandler } from "src/handlers/conqueredTiles";
 import { GameRunner } from "../../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { GameStartInfo, Turn } from "../../OpenFrontIO/src/core/Schemas";
@@ -12,7 +12,7 @@ import fs from "fs";
 let heatmapMaker: heatmapCreator;
 
 export async function createVisualization(
-  tileConquredHandler: TileConquredHandler,
+  tileConqueredHandler: TileConqueredHandler,
   gr: GameRunner,
   gameInfo: [GameStartInfo | undefined, Turn[]],
   mapLoader: gameMapLoader,
@@ -30,7 +30,7 @@ export async function createVisualization(
   fs.mkdirSync(outFolder, { recursive: true });
   const videoData: Uint8ClampedArray[] = [];
   const heatmapData = await heatmapMaker.create(
-    tileConquredHandler.conqueredTilesTotal,
+    tileConqueredHandler.conqueredTilesTotal,
     0.001,
   );
   if (heatmapData) {
@@ -48,12 +48,12 @@ export async function createVisualization(
         .on("error", reject);
     });
   }
-  for (let i = 0; i < tileConquredHandler.conqueredTilesFullGame.length; i++) {
+  for (let i = 0; i < tileConqueredHandler.conqueredTilesFullGame.length; i++) {
     const heatmapData = await heatmapMaker.create(
-      tileConquredHandler.conqueredTilesFullGame[i],
+      tileConqueredHandler.conqueredTilesFullGame[i],
     );
     console.log(
-      `Created heatmap ${i + 1}/${tileConquredHandler.conqueredTilesFullGame.length}`,
+      `Created heatmap ${i + 1}/${tileConqueredHandler.conqueredTilesFullGame.length}`,
     );
     if (heatmapData) videoData.push(heatmapData);
   }

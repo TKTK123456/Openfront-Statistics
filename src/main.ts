@@ -1,7 +1,7 @@
 import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { fileURLToPath } from "url";
-import { TileConquredHandler } from "./handlers/conqueredTiles";
+import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
 import { handleGameRunner } from "./GameRunnerHandler/gameRunnerHandler";
 import { createVisualization } from "./visualization/tilesConqured";
@@ -18,20 +18,20 @@ const totalTurns = gameInfo[1].length;
 
 let gr: GameRunner;
 
-let tileConquredHandler: TileConquredHandler;
+let tileConqueredHandler: TileConqueredHandler;
 
 const gameRunnerHandler = new handleGameRunner(gameInfo);
 await gameRunnerHandler.init();
 gr = gameRunnerHandler.gr;
-tileConquredHandler = new TileConquredHandler(turnInterval, gr, totalTurns);
-gameRunnerHandler.setHandlers([tileConquredHandler.tickHandler], {
+tileConqueredHandler = new TileConqueredHandler(turnInterval, gr, totalTurns);
+gameRunnerHandler.setHandlers([tileConqueredHandler.tickHandler], {
   players: {
-    conquerTiles: [tileConquredHandler.conqueredTile],
+    conquerTiles: [tileConqueredHandler.conqueredTile],
   },
 });
-gameRunnerHandler.start()
+gameRunnerHandler.start();
 createVisualization(
-  tileConquredHandler,
+  tileConqueredHandler,
   gr,
   gameInfo,
   gameRunnerHandler.mapLoader,

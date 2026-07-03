@@ -11,7 +11,7 @@ import {
   ErrorUpdate,
 } from "../../OpenFrontIO/src/core/game/GameUpdates";
 
-interface OtherHandlers {
+export interface OtherHandlers {
   players?: {
     conquerTiles?: ((tile: number) => void)[];
   };
