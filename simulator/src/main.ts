@@ -2,14 +2,10 @@ import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { fileURLToPath } from "url";
 import { TileConquredHandler } from "./sims/conqueredTiles";
-import { fetchGame, gameMapLoader } from "./util/util";
+import { fetchGame } from "./util/util";
 import { handleGameRunner } from "./GameRunnerHandler/gameRunnerHandler";
 import { createVisualization } from "./visualization/tilesConqured";
 
-const PROJECT_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../OpenFrontIO",
-);
 let outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   `../out`,
