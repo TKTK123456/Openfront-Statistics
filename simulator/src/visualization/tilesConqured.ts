@@ -1,4 +1,4 @@
-import { TileConquredHandler } from "src/sims/conqueredTiles";
+import { TileConquredHandler } from "src/handlers/conqueredTiles";
 import { GameRunner } from "../../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { GameStartInfo, Turn } from "../../OpenFrontIO/src/core/Schemas";

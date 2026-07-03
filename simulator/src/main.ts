@@ -1,7 +1,7 @@
 import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { fileURLToPath } from "url";
-import { TileConquredHandler } from "./sims/conqueredTiles";
+import { TileConquredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
 import { handleGameRunner } from "./GameRunnerHandler/gameRunnerHandler";
 import { createVisualization } from "./visualization/tilesConqured";
