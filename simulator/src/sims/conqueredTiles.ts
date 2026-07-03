@@ -15,27 +15,27 @@ export class TileConquredHandler {
     this.totalTurns = totalTurns;
   }
 
-  conquredTilesTotal: Map<number, number> = new Map();
-  conquredTilesShort: Map<number, number> = new Map();
-  conquredTilesFullGame: Map<number, number>[] = [];
-  conquredTilesMiddleShort: Map<number, number> = new Map();
+  conqueredTilesTotal: Map<number, number> = new Map();
+  conqueredTilesShort: Map<number, number> = new Map();
+  conqueredTilesFullGame: Map<number, number>[] = [];
+  conqueredTilesMiddleShort: Map<number, number> = new Map();
 
-  conquredTile(tile: number) {
-    this.conquredTilesShort.set(
+  conqueredTile = (tile: number) => {
+    this.conqueredTilesShort.set(
       tile,
-      (this.conquredTilesShort.get(tile) ?? 0) + 1,
+      (this.conqueredTilesShort.get(tile) ?? 0) + 1,
     );
-    this.conquredTilesMiddleShort.set(
+    this.conqueredTilesMiddleShort.set(
       tile,
-      (this.conquredTilesMiddleShort.get(tile) ?? 0) + 1,
+      (this.conqueredTilesMiddleShort.get(tile) ?? 0) + 1,
     );
-    this.conquredTilesTotal.set(
+    this.conqueredTilesTotal.set(
       tile,
-      (this.conquredTilesTotal.get(tile) ?? 0) + 1,
+      (this.conqueredTilesTotal.get(tile) ?? 0) + 1,
     );
-  }
+  };
 
-  tickHandler(g: GameUpdateViewData | ErrorUpdate, turnNum: number): void {
+  tickHandler = (g: GameUpdateViewData | ErrorUpdate, turnNum: number) => {
     if (
       (!this.gr.game.inSpawnPhase() &&
         (turnNum + this.turnInterval / 2 + 1) % this.turnInterval === 0) ||
@@ -43,11 +43,11 @@ export class TileConquredHandler {
       this.gr.game.getWinner() !== null
     ) {
       let tempMap = new Map();
-      for (let tile of this.conquredTilesMiddleShort.entries()) {
+      for (let tile of this.conqueredTilesMiddleShort.entries()) {
         tempMap.set(tile[0], tile[1]);
       }
-      this.conquredTilesFullGame.push(tempMap);
-      this.conquredTilesMiddleShort.clear();
+      this.conqueredTilesFullGame.push(tempMap);
+      this.conqueredTilesMiddleShort.clear();
     }
     if (
       (this.gr.game.inSpawnPhase() ||
@@ -58,10 +58,10 @@ export class TileConquredHandler {
       return;
     console.log(turnNum + 1 + "/" + this.totalTurns);
     let tempMap = new Map();
-    for (let tile of this.conquredTilesShort.entries()) {
+    for (let tile of this.conqueredTilesShort.entries()) {
       tempMap.set(tile[0], tile[1]);
     }
-    this.conquredTilesFullGame.push(tempMap);
-    this.conquredTilesShort.clear();
+    this.conqueredTilesFullGame.push(tempMap);
+    this.conqueredTilesShort.clear();
   }
 }

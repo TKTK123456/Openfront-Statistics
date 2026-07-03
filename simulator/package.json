@@ -4,7 +4,7 @@
     "description": "Openfront simulator",
     "main": "src/test.ts",
     "scripts": {
-        "start": "npx tsx src/sim.ts",
+        "start": "npx tsx src/main.ts",
         "build": "true",
         "generate-nix": "bun2nix > bun.nix",
         "format": "prettier --write 'src/**/*.{ts,tsx,js,jsx}'",
