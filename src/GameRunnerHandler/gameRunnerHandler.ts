@@ -10,10 +10,14 @@ import {
   GameUpdateViewData,
   ErrorUpdate,
 } from "../../OpenFrontIO/src/core/game/GameUpdates";
+import { TradeShipExecution } from "../../OpenFrontIO/src/core/execution/TradeShipExecution";
 
 export interface OtherHandlers {
   players?: {
     conquerTiles?: ((tile: number) => void)[];
+  };
+  executions?: {
+    tradeShip: ((self: any) => void)[];
   };
 }
 
@@ -65,6 +69,16 @@ export class handleGameRunner {
     this.otherHandlers = otherHandlers;
     if (otherHandlers?.players === undefined) {
       this.initializedHandlers.players = true;
+    }
+    if (otherHandlers?.executions?.tradeShip !== undefined) {
+      const oldTick = TradeShipExecution.prototype.tick;
+      const tradeShip = otherHandlers.executions.tradeShip;
+      TradeShipExecution.prototype.tick = function (ticks: number) {
+        for (const handler of tradeShip) {
+          handler(this);
+        }
+        return oldTick.call(this, ticks);
+      };
     }
     this.updateHandlers = updateHandlers;
   }
