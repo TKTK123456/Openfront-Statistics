@@ -17,7 +17,8 @@ export interface OtherHandlers {
     conquerTiles?: ((tile: number) => void)[];
   };
   executions?: {
-    tradeShip: ((self: any) => void)[];
+    tradeShip: ((self: TradeShipExecution) => void)[];
+    tradeShipFinish: ((self: TradeShipExecution) => void)[];
   };
 }
 
@@ -78,6 +79,16 @@ export class handleGameRunner {
           handler(this);
         }
         return oldTick.call(this, ticks);
+      };
+    }
+    if (otherHandlers?.executions?.tradeShipFinish !== undefined) {
+      const oldFinish = TradeShipExecution.prototype["complete"];
+      const finish = otherHandlers.executions.tradeShipFinish;
+      TradeShipExecution.prototype["complete"] = function () {
+        for (const handler of finish) {
+          handler(this);
+        }
+        return oldFinish();
       };
     }
     this.updateHandlers = updateHandlers;
