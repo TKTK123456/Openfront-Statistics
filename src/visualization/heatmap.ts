@@ -69,13 +69,18 @@ export class heatmapCreator {
           const intensity = value * Math.exp(-3 * norm * norm);
 
           const idx = py * width + px;
-          heatAlpha[idx] += intensity * (1 - heatAlpha[idx]);
+          heatAlpha[idx] += intensity;
         }
       }
     }
+    let maxHeat = 0;
+
+    for (const value of heatAlpha) {
+      if (value > maxHeat) maxHeat = value;
+    }
     const heatmapData = new Uint8ClampedArray(width * height * 4);
     for (let i = 0; i < width * height; i++) {
-      const alpha = heatAlpha[i];
+      const alpha = Math.log2(heatAlpha[i] + 1) / Math.log2(maxHeat + 1);
       const [r, g, b, a] = this.interpolateColor(alpha);
 
       const idx = i * 4;
