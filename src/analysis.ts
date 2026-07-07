@@ -7,7 +7,7 @@ import {
   handleGameRunner,
   OtherHandlers,
 } from "./GameRunnerHandler/gameRunnerHandler";
-import { createVisualization } from "./visualization/tilesConqured";
+import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
 import process from "process";
 import { parseArgs, ParseArgsOptionsConfig } from "util";
 import {
@@ -131,7 +131,7 @@ class Handlers {
           this.allHandlers.tilesConquered.conqueredTile,
         );
         this.visulizations.push(() => {
-          createVisualization(
+          createTilesConquredHeatmap(
             this.allHandlers.tilesConquered,
             gr,
             gameInfo,

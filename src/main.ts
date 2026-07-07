@@ -3,8 +3,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
-import { handleGameRunner } from "./GameRunnerHandler/gameRunnerHandler";
-import { createVisualization } from "./visualization/tilesConqured";
+import {
+  Config,
+  handleGameRunner,
+} from "./GameRunnerHandler/gameRunnerHandler";
+import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
 
 let outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -20,7 +23,11 @@ let gr: GameRunner;
 
 let tileConqueredHandler: TileConqueredHandler;
 
-const gameRunnerHandler = new handleGameRunner(gameInfo);
+const config: Config = {
+  turnInterval,
+};
+
+const gameRunnerHandler = new handleGameRunner(gameInfo, config);
 await gameRunnerHandler.init();
 gr = gameRunnerHandler.gr;
 tileConqueredHandler = new TileConqueredHandler(turnInterval, gr, totalTurns);
@@ -30,7 +37,7 @@ gameRunnerHandler.setHandlers([tileConqueredHandler.tickHandler], {
   },
 });
 gameRunnerHandler.start();
-createVisualization(
+createTilesConquredHeatmap(
   tileConqueredHandler,
   gr,
   gameInfo,

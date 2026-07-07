@@ -11,22 +11,32 @@ import fs from "fs";
 
 let heatmapMaker: heatmapCreator;
 
-export async function createVisualization(
+export async function createTilesConquredHeatmap(
   tileConqueredHandler: TileConqueredHandler,
   gr: GameRunner,
   gameInfo: [GameStartInfo | undefined, Turn[]],
   mapLoader: gameMapLoader,
   outFolder: string,
+  fileNames?: {
+    video?: string;
+    full?: string;
+  },
 ) {
   if (gameInfo[0] === undefined) return;
   const gameID = gameInfo[0].gameID;
+  if (fileNames === undefined) fileNames = {};
+  if (fileNames.video === undefined)
+    fileNames.video = "conqured-tiles-" + gameID;
+  if (fileNames.full === undefined) fileNames.full = "conqured-tiles-" + gameID;
   const map = mapLoader.getMapData(gameInfo[0].config.gameMap);
-  heatmapMaker = new heatmapCreator(
-    map,
-    gr.game,
-    gameInfo[0].config.gameMapSize === GameMapSize.Compact,
-  );
-  let heatmapFilePath = path.join(outFolder, `${gameID}.mp4`);
+  if (!heatmapMaker)
+    heatmapMaker = new heatmapCreator(
+      map,
+      gr.game,
+      gameInfo[0].config.gameMapSize === GameMapSize.Compact,
+    );
+  fileNames.video = path.join(outFolder, `${fileNames.video}.mp4`);
+  fileNames.full = path.join(outFolder, `${fileNames.full}.png`);
   fs.mkdirSync(outFolder, { recursive: true });
   const videoData: Uint8ClampedArray[] = [];
   const heatmapData = await heatmapMaker.create(
@@ -41,11 +51,12 @@ export async function createVisualization(
     png.data.set(heatmapData);
 
     await new Promise<void>((resolve, reject) => {
-      png
-        .pack()
-        .pipe(fs.createWriteStream(heatmapFilePath + ".png"))
-        .on("finish", () => resolve())
-        .on("error", reject);
+      if (fileNames.full)
+        png
+          .pack()
+          .pipe(fs.createWriteStream(fileNames.full))
+          .on("finish", () => resolve())
+          .on("error", reject);
     });
   }
   for (let i = 0; i < tileConqueredHandler.conqueredTilesFullGame.length; i++) {
@@ -58,7 +69,7 @@ export async function createVisualization(
     if (heatmapData) videoData.push(heatmapData);
   }
   encodeVideo(
-    `${heatmapFilePath}`,
+    `${fileNames.video}`,
     videoData,
     gr.game.width(),
     gr.game.height(),

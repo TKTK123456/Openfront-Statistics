@@ -22,6 +22,10 @@ export interface OtherHandlers {
   };
 }
 
+export interface Config {
+  turnInterval: number;
+}
+
 export class handleGameRunner {
   public gameConfig: GameStartInfo;
   public turns: Turn[];
@@ -34,9 +38,16 @@ export class handleGameRunner {
     g: GameUpdateViewData | ErrorUpdate,
     turnNum: number,
   ) => void)[];
+  public config: Config;
   private updateHandler: (g: GameUpdateViewData | ErrorUpdate) => void = (
     g: GameUpdateViewData | ErrorUpdate,
   ) => {
+    if (
+      (!this.gr.game.inSpawnPhase() &&
+        (this.turnNum + 1) % this.config.turnInterval === 0) ||
+      (this.turnNum >= this.totalTurns - 1 && this.gr.game.getWinner() == null)
+    )
+      console.log(this.turnNum + 1 + "/" + this.totalTurns);
     for (const handler of this.updateHandlers) {
       handler(g, this.turnNum);
     }
@@ -44,11 +55,12 @@ export class handleGameRunner {
   private otherHandlers: OtherHandlers | undefined;
   private initializedHandlers: { players: boolean } = { players: false };
   public totalTurns: number;
-  constructor(gameInfo: [GameStartInfo | undefined, Turn[]]) {
+  constructor(gameInfo: [GameStartInfo | undefined, Turn[]], config: Config) {
     if (gameInfo[0] === undefined) return;
     this.gameConfig = gameInfo[0];
     this.turns = gameInfo[1];
     this.totalTurns = this.turns.length;
+    this.config = config;
   }
   async init() {
     const gameRunner = createGameRunner(
@@ -82,13 +94,17 @@ export class handleGameRunner {
       };
     }
     if (otherHandlers?.executions?.tradeShipFinish !== undefined) {
-      const oldFinish = TradeShipExecution.prototype["complete"];
       const finish = otherHandlers.executions.tradeShipFinish;
-      TradeShipExecution.prototype["complete"] = function () {
+      const proto = TradeShipExecution.prototype as any;
+
+      const oldFinish = proto.complete;
+
+      proto.complete = function () {
         for (const handler of finish) {
           handler(this);
         }
-        return oldFinish();
+
+        return oldFinish.call(this);
       };
     }
     this.updateHandlers = updateHandlers;

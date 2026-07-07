@@ -56,7 +56,6 @@ export class TileConqueredHandler {
       this.gr.game.getWinner() == null
     )
       return;
-    console.log(turnNum + 1 + "/" + this.totalTurns);
     let tempMap = new Map();
     for (let tile of this.conqueredTilesShort.entries()) {
       tempMap.set(tile[0], tile[1]);
