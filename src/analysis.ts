@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
 import {
+  Config,
   handleGameRunner,
   OtherHandlers,
 } from "./GameRunnerHandler/gameRunnerHandler";
@@ -14,6 +15,8 @@ import {
   GameUpdateViewData,
   ErrorUpdate,
 } from "../OpenFrontIO/src/core/game/GameUpdates";
+import { TradeShipHandler } from "./handlers/tradeShip";
+import { tradeShipRoutes } from "./visualization/tradeShip";
 
 const options: ParseArgsOptionsConfig = {
   gameId: {
@@ -55,7 +58,7 @@ Options:
   -t, --handlers <handler>   Handler(s) to enable
                              Default: tilesConquered
                              Can be specified multiple times:
-                               -t tilesConquered -t otherHandler
+                               -t tilesConquered -t tradeShipRoutes
   -o, --out <folder>         Output folder (default: out)
   -h, --help                 Show this help message
 
@@ -104,6 +107,7 @@ class Handlers {
   public handlerNames: string[];
   public allHandlers = {} as {
     tilesConquered: TileConqueredHandler;
+    tradeShip: TradeShipHandler;
   };
 
   public allTickHandlers: ((
@@ -115,30 +119,59 @@ class Handlers {
     players: {
       conquerTiles: [],
     },
+    executions: {
+      tradeShip: [],
+      tradeShipFinish: [],
+    },
   };
 
   public visulizations: (() => void)[] = [];
   init = () => {
     for (const handlerName of this.handlerNames) {
-      if (handlerName === "tilesConquered") {
-        this.allHandlers.tilesConquered = new TileConqueredHandler(
-          turnInterval,
-          gr,
-          totalTurns,
-        );
-        this.allTickHandlers.push(this.allHandlers.tilesConquered.tickHandler);
-        this.otherHandlers.players?.conquerTiles?.push(
-          this.allHandlers.tilesConquered.conqueredTile,
-        );
-        this.visulizations.push(() => {
-          createTilesConquredHeatmap(
-            this.allHandlers.tilesConquered,
+      switch (handlerName) {
+        case "tilesConquered":
+          this.allHandlers.tilesConquered = new TileConqueredHandler(
+            turnInterval,
             gr,
-            gameInfo,
-            gameRunnerHandler.mapLoader,
-            outFolder,
+            totalTurns,
           );
-        });
+          this.allTickHandlers.push(
+            this.allHandlers.tilesConquered.tickHandler,
+          );
+          this.otherHandlers.players?.conquerTiles?.push(
+            this.allHandlers.tilesConquered.conqueredTile,
+          );
+          this.visulizations.push(() => {
+            createTilesConquredHeatmap(
+              this.allHandlers.tilesConquered,
+              gr,
+              gameInfo,
+              gameRunnerHandler.mapLoader,
+              outFolder,
+            );
+          });
+          break;
+        case "tradeShipRoutes":
+          this.allHandlers.tradeShip = new TradeShipHandler(
+            turnInterval,
+            gr,
+            totalTurns,
+          );
+          this.otherHandlers.executions?.tradeShip?.push(
+            this.allHandlers.tradeShip.tradeShipExecHandler,
+          );
+          this.otherHandlers.executions?.tradeShipFinish?.push(
+            this.allHandlers.tradeShip.tradeShipFinishHandler,
+          );
+          this.visulizations.push(() => {
+            tradeShipRoutes(
+              this.allHandlers.tradeShip,
+              gr,
+              gameInfo,
+              gameRunnerHandler.mapLoader,
+              outFolder,
+            );
+          });
       }
     }
   };
@@ -147,7 +180,11 @@ class Handlers {
 let gr: GameRunner;
 const handlers = new Handlers(args.handlers);
 
-const gameRunnerHandler = new handleGameRunner(gameInfo);
+const config: Config = {
+  turnInterval,
+};
+
+const gameRunnerHandler = new handleGameRunner(gameInfo, config);
 await gameRunnerHandler.init();
 gr = gameRunnerHandler.gr;
 handlers.init();

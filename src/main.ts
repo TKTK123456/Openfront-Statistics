@@ -8,6 +8,8 @@ import {
   handleGameRunner,
 } from "./GameRunnerHandler/gameRunnerHandler";
 import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
+import { TradeShipHandler } from "./handlers/tradeShip";
+import { tradeShipRoutes } from "./visualization/tradeShip";
 
 let outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -22,6 +24,7 @@ const totalTurns = gameInfo[1].length;
 let gr: GameRunner;
 
 let tileConqueredHandler: TileConqueredHandler;
+let tradeShipHandler: TradeShipHandler;
 
 const config: Config = {
   turnInterval,
@@ -31,14 +34,26 @@ const gameRunnerHandler = new handleGameRunner(gameInfo, config);
 await gameRunnerHandler.init();
 gr = gameRunnerHandler.gr;
 tileConqueredHandler = new TileConqueredHandler(turnInterval, gr, totalTurns);
+tradeShipHandler = new TradeShipHandler(turnInterval, gr, totalTurns);
 gameRunnerHandler.setHandlers([tileConqueredHandler.tickHandler], {
   players: {
     conquerTiles: [tileConqueredHandler.conqueredTile],
+  },
+  executions: {
+    tradeShip: [tradeShipHandler.tradeShipExecHandler],
+    tradeShipFinish: [tradeShipHandler.tradeShipFinishHandler],
   },
 });
 gameRunnerHandler.start();
 createTilesConquredHeatmap(
   tileConqueredHandler,
+  gr,
+  gameInfo,
+  gameRunnerHandler.mapLoader,
+  outFolder,
+);
+tradeShipRoutes(
+  tradeShipHandler,
   gr,
   gameInfo,
   gameRunnerHandler.mapLoader,

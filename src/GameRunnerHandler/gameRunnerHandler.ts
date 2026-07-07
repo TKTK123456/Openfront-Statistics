@@ -17,8 +17,8 @@ export interface OtherHandlers {
     conquerTiles?: ((tile: number) => void)[];
   };
   executions?: {
-    tradeShip: ((self: TradeShipExecution) => void)[];
-    tradeShipFinish: ((self: TradeShipExecution) => void)[];
+    tradeShip?: ((self: TradeShipExecution) => void)[];
+    tradeShipFinish?: ((self: TradeShipExecution) => void)[];
   };
 }
 
