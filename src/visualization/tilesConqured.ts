@@ -41,7 +41,6 @@ export async function createTilesConquredHeatmap(
   const videoData: Uint8ClampedArray[] = [];
   const heatmapData = await heatmapMaker.create(
     tileConqueredHandler.conqueredTilesTotal,
-    0.001,
   );
   if (heatmapData) {
     const png = new PNG({
