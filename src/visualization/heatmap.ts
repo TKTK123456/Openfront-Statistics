@@ -1,6 +1,12 @@
 import { Game } from "../../OpenFrontIO/src/core/game/Game";
 import { MapData } from "../../OpenFrontIO/src/core/game/GameMapLoader";
 import { buildTerrainRGBA } from "../../OpenFrontIO/src/client/render/gl/utils/ColorUtils";
+export interface GradientStop {
+  stop: number;
+  color: [number, number, number, number];
+}
+
+export type Gradient = GradientStop[];
 export class heatmapCreator {
   private radius = 10;
   private radiusSq = this.radius ** 2;
@@ -9,12 +15,22 @@ export class heatmapCreator {
   public height: number;
   public map: MapData;
   public compact: boolean;
-  constructor(map: MapData, game: Game, compact: boolean) {
+  public gradient: Gradient = [
+    { stop: 0, color: [10, 20, 90, 160] }, // dark blue
+    { stop: 0.3, color: [0, 0, 255, 188.5] }, // blue
+    { stop: 0.5, color: [0, 255, 255, 207.5] }, // cyan
+    { stop: 0.7, color: [0, 255, 0, 226.5] }, // lime
+    { stop: 1, color: [255, 0, 0, 255] }, // red
+  ];
+  constructor(map: MapData, game: Game, compact: boolean, gradient?: Gradient) {
     this.game = game;
     this.width = game.width();
     this.height = game.height();
     this.map = map;
     this.compact = compact;
+    if (gradient) {
+      this.gradient = gradient;
+    }
   }
 
   private backGroundCache: Map<string, Uint8ClampedArray> = new Map();
@@ -37,45 +53,47 @@ export class heatmapCreator {
   }
 
   async create(tileFrequencies: Map<number, number>, frequencyWorth = 0.01) {
-    if (tileFrequencies.size === 0) return await this.mapBackground();
     const game = this.game;
     const width = this.width;
     const height = this.height;
     const radius = this.radius;
     const radiusSq = this.radiusSq;
-    const heatAlpha = new Float32Array(width * height);
-    for (const tileFrequency of tileFrequencies.entries()) {
-      const x = game.x(tileFrequency[0]);
-      const y = game.y(tileFrequency[0]);
-      const value = tileFrequency[1] * frequencyWorth;
-      const xStart = Math.max(0, Math.floor(x - radius));
-      const xEnd = Math.min(width - 1, Math.ceil(x + radius));
-      const yStart = Math.max(0, Math.floor(y - radius));
-      const yEnd = Math.min(height - 1, Math.ceil(y + radius));
-      for (let py = yStart; py <= yEnd; py++) {
-        for (let px = xStart; px <= xEnd; px++) {
-          const dx = px - x;
-          const dy = py - y;
-          const distSq = dx * dx + dy * dy;
-          if (distSq > radiusSq) continue;
+    let heatAlpha = new Float32Array(width * height);
+    const heatmapData = new Uint8ClampedArray(width * height * 4);
+    let maxHeat = 0;
+    if (tileFrequencies.size > 0) {
+      for (const tileFrequency of tileFrequencies.entries()) {
+        const x = game.x(tileFrequency[0]);
+        const y = game.y(tileFrequency[0]);
+        const value = tileFrequency[1] * frequencyWorth;
+        const xStart = Math.max(0, Math.floor(x - radius));
+        const xEnd = Math.min(width - 1, Math.ceil(x + radius));
+        const yStart = Math.max(0, Math.floor(y - radius));
+        const yEnd = Math.min(height - 1, Math.ceil(y + radius));
+        for (let py = yStart; py <= yEnd; py++) {
+          for (let px = xStart; px <= xEnd; px++) {
+            const dx = px - x;
+            const dy = py - y;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > radiusSq) continue;
 
-          const dist = Math.sqrt(distSq);
-          const norm = dist / radius;
-          const intensity = value * Math.exp(-3 * norm * norm);
+            const dist = Math.sqrt(distSq);
+            const norm = dist / radius;
+            const intensity = value * Math.exp(-3 * norm * norm);
 
-          const idx = py * width + px;
-          heatAlpha[idx] += intensity;
+            const idx = py * width + px;
+            heatAlpha[idx] += intensity;
+          }
         }
       }
-    }
-    let maxHeat = 0;
 
-    for (const value of heatAlpha) {
-      if (value > maxHeat) maxHeat = value;
+      for (const value of heatAlpha) {
+        if (value > maxHeat) maxHeat = value;
+      }
     }
-    const heatmapData = new Uint8ClampedArray(width * height * 4);
     for (let i = 0; i < width * height; i++) {
-      const alpha = Math.log2(heatAlpha[i] + 1) / Math.log2(maxHeat + 1);
+      const alpha =
+        maxHeat > 0 ? Math.log2(heatAlpha[i] + 1) / Math.log2(maxHeat + 1) : 0;
       const [r, g, b, a] = this.interpolateColor(alpha);
 
       const idx = i * 4;
@@ -114,13 +132,7 @@ export class heatmapCreator {
     return a + (b - a) * t;
   }
   private interpolateColor(t: number) {
-    const gradient = [
-      { stop: 0, color: [0, 0, 255, 0] }, // transparent blue
-      { stop: 0.3, color: [0, 0, 255, 255] }, // blue
-      { stop: 0.5, color: [0, 255, 255, 255] }, // cyan
-      { stop: 0.7, color: [0, 255, 0, 255] }, // lime
-      { stop: 1, color: [255, 0, 0, 255] }, // red
-    ];
+    const gradient = this.gradient;
     t = Math.max(0, Math.min(1, t));
     let start = gradient[0];
     let end = gradient[gradient.length - 1];
