@@ -1,5 +1,6 @@
 import { Game } from "../../OpenFrontIO/src/core/game/Game";
 import { MapData } from "../../OpenFrontIO/src/core/game/GameMapLoader";
+import { buildTerrainRGBA } from "../../OpenFrontIO/src/client/render/gl/utils/ColorUtils";
 export class heatmapCreator {
   private radius = 10;
   private radiusSq = this.radius ** 2;
@@ -28,15 +29,9 @@ export class heatmapCreator {
     let mapArray = await (this.compact
       ? this.map.map4xBin()
       : this.map.mapBin());
-    const background = new Uint8ClampedArray(width * height * 4);
-    for (let i = 0; i < mapArray.length; i++) {
-      const v = mapArray[i];
-      const j = i * 4;
-      background[j] = v;
-      background[j + 1] = v;
-      background[j + 2] = v;
-      background[j + 3] = 255;
-    }
+    const background = new Uint8ClampedArray(
+      buildTerrainRGBA(mapArray, width, height),
+    );
     this.backGroundCache.set(mapName, background);
     return background;
   }

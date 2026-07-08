@@ -1,22 +1,22 @@
 import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { fileURLToPath } from "url";
-import { TileConqueredHandler } from "./handlers/conqueredTiles";
-import { fetchGame } from "./util/util";
+import { TileConqueredHandler } from "../src/handlers/conqueredTiles";
+import { fetchGame } from "../src/util/util";
 import {
   Config,
   handleGameRunner,
-} from "./GameRunnerHandler/gameRunnerHandler";
-import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
+} from "../src/GameRunnerHandler/gameRunnerHandler";
+import { createTilesConquredHeatmap } from "../src/visualization/tilesConqured";
 import { TradeShipExecution } from "../OpenFrontIO/src/core/execution/TradeShipExecution";
-import { TradeShipHandler } from "./handlers/tradeShip";
-import { tradeShipRoutes } from "./visualization/tradeShip";
+import { TradeShipHandler } from "../src/handlers/tradeShip";
+import { tradeShipRoutes } from "../src/visualization/tradeShip";
 
 let outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   `../out`,
 );
-const gameID = "mW2bSxT1";
+const gameID = "kgQ2yuYJ";
 const turnInterval = 100;
 
 const gameInfo = await fetchGame(gameID);

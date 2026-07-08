@@ -26,6 +26,6 @@
     "OpenFrontIO/src/**/*",
     "OpenFrontIO/resources/**/*",
     "src/**/*"
-, "src/visualization/heatmap.ts"  ],
+, "src/visualization/heatmap.ts", "tests/general.test.ts"  ],
   "exclude": ["node_modules"]
 }
