@@ -211,6 +211,56 @@ async function openH264(ost: OutputStream) {
  * Main encode function
  * ---------------------------- */
 
+/**
+ * Streaming H264 encoder: open once, write frames one at a time, close. Lets
+ * callers render and encode frame-by-frame instead of holding every RGBA frame
+ * in memory (a full timelapse of a large map is tens of GB otherwise).
+ */
+export class VideoEncoder {
+  private ost: OutputStream = {
+    st: null,
+    enc: null,
+    frame: null,
+    pkt: null,
+    nextPts: 0n,
+  };
+  private oc!: FormatContext;
+
+  constructor(
+    private output: string,
+    private w: number,
+    private h: number,
+    private fps: number,
+  ) {}
+
+  async open() {
+    this.oc = new FormatContext();
+    FFmpegError.throwIfError(
+      this.oc.allocOutputContext2(null, null, this.output),
+    );
+    addH264Stream(this.oc, this.ost, this.w, this.h, this.fps);
+    await openH264(this.ost);
+    FFmpegError.throwIfError(
+      this.ost.enc!.parametersFromContext(this.ost.st!.codecpar),
+    );
+    this.oc.dumpFormat(0, this.output, true);
+    if ((this.oc.oformat!.flags & 1) === 0) await this.oc.openOutput();
+    FFmpegError.throwIfError(await this.oc.writeHeader(null));
+  }
+
+  async writeFrame(rgba: Uint8ClampedArray) {
+    const frame = getFrame(this.ost, rgba, this.w, this.h, this.fps);
+    await writeFrame(this.oc, this.ost, frame);
+  }
+
+  async close() {
+    await writeFrame(this.oc, this.ost, null); // flush
+    await this.oc.writeTrailer();
+    if ((this.oc.oformat!.flags & 1) === 0) await this.oc.closeOutput();
+    this.oc.freeContext();
+  }
+}
+
 export async function encodeVideo(
   output: string,
   frames: Uint8ClampedArray[],
@@ -218,46 +268,10 @@ export async function encodeVideo(
   h: number,
   fps: number,
 ) {
-  const ost: OutputStream = {
-    st: null,
-    enc: null,
-    frame: null,
-    pkt: null,
-    nextPts: 0n,
-  };
-
-  const oc = new FormatContext();
-
-  let ret = oc.allocOutputContext2(null, null, output);
-  FFmpegError.throwIfError(ret);
-
-  const fmt = oc.oformat!;
-
-  addH264Stream(oc, ost, w, h, fps);
-  await openH264(ost);
-  const ret2 = ost.enc!.parametersFromContext(ost.st!.codecpar);
-  FFmpegError.throwIfError(ret2);
-  oc.dumpFormat(0, output, true);
-
-  if ((fmt.flags & 1) === 0) {
-    await oc.openOutput();
-  }
-
-  ret = await oc.writeHeader(null);
-  FFmpegError.throwIfError(ret);
-
+  const encoder = new VideoEncoder(output, w, h, fps);
+  await encoder.open();
   for (const rgba of frames) {
-    const frame = getFrame(ost, rgba, w, h, fps);
-    await writeFrame(oc, ost, frame);
+    await encoder.writeFrame(rgba);
   }
-
-  await writeFrame(oc, ost, null);
-
-  await oc.writeTrailer();
-
-  if ((fmt.flags & 1) === 0) {
-    await oc.closeOutput();
-  }
-
-  oc.freeContext();
+  await encoder.close();
 }
