@@ -59,6 +59,7 @@ Options:
                              Default: tilesConquered
                              Can be specified multiple times:
                                -t tilesConquered -t tradeShipRoutes
+                              Options are: tilesConqured and tradeShipRoutes
   -o, --out <folder>         Output folder (default: out)
   -h, --help                 Show this help message
 
@@ -172,6 +173,7 @@ class Handlers {
               outFolder,
             );
           });
+          break;
       }
     }
   };
