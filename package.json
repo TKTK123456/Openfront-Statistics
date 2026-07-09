@@ -24,7 +24,6 @@
         "@types/pg": "^8.15.4",
         "@types/pngjs": "^6.0.5",
         "@types/ws": "^8.18.1",
-        "@unrs/resolver-binding-linux-x64-gnu": "^1.11.1",
         "chai": "^5.2.1",
         "colord": "^2.9.3",
         "colorjs.io": "^0.5.2",

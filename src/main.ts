@@ -1,61 +1,90 @@
 import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
-import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
 import {
   Config,
   handleGameRunner,
 } from "./GameRunnerHandler/gameRunnerHandler";
-import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
-import { TradeShipHandler } from "./handlers/tradeShip";
-import { tradeShipRoutes } from "./visualization/tradeShip";
+import { heatmapCreator } from "./visualization/heatmap";
+import { createCombinedTimelapse } from "./visualization/timelapse";
+import { GameMapSize } from "../OpenFrontIO/src/core/game/Game";
 
-let outFolder = path.join(
+const outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   `../out`,
 );
-const gameID = "kgQ2yuYJ";
-const turnInterval = 100;
+const gameID = process.argv[2] ?? "kgQ2yuYJ";
+// Turns condensed into each frame; played back at 30fps.
+const turnInterval = 3;
 
 const gameInfo = await fetchGame(gameID);
+if (gameInfo[0] === undefined) throw new Error(`could not load game ${gameID}`);
 const totalTurns = gameInfo[1].length;
 
-let gr: GameRunner;
-
-let tileConqueredHandler: TileConqueredHandler;
-let tradeShipHandler: TradeShipHandler;
-
-const config: Config = {
-  turnInterval,
-};
-
+const config: Config = { turnInterval };
 const gameRunnerHandler = new handleGameRunner(gameInfo, config);
 await gameRunnerHandler.init();
-gr = gameRunnerHandler.gr;
-tileConqueredHandler = new TileConqueredHandler(turnInterval, gr, totalTurns);
-tradeShipHandler = new TradeShipHandler(turnInterval, gr, totalTurns);
-gameRunnerHandler.setHandlers([tileConqueredHandler.tickHandler], {
+const gr: GameRunner = gameRunnerHandler.gr;
+
+// Terrain background + gradient, shared by every render worker.
+const heatmap = new heatmapCreator(
+  gameRunnerHandler.mapLoader.getMapData(gameInfo[0].config.gameMap),
+  gr.game,
+  gameInfo[0].config.gameMapSize === GameMapSize.Compact,
+);
+const background = await heatmap.mapBackground();
+if (!background) throw new Error("failed to load map background");
+
+// Conquest tally for the current window, reset each frame. Kept local so this
+// entry point stays independent of the other visualizations' handlers.
+const conquestWindow = new Map<number, number>();
+gameRunnerHandler.setHandlers([], {
   players: {
-    conquerTiles: [tileConqueredHandler.conqueredTile],
-  },
-  executions: {
-    tradeShip: [tradeShipHandler.tradeShipExecHandler],
-    tradeShipFinish: [tradeShipHandler.tradeShipFinishHandler],
+    conquerTiles: [
+      (tile: number) =>
+        conquestWindow.set(tile, (conquestWindow.get(tile) ?? 0) + 1),
+    ],
   },
 });
-gameRunnerHandler.start();
-createTilesConquredHeatmap(
-  tileConqueredHandler,
-  gr,
-  gameInfo,
-  gameRunnerHandler.mapLoader,
-  outFolder,
+
+// Drive the (sequential) sim. At each frame boundary snapshot the conquest
+// window and the current country outlines together, so they stay aligned.
+const conquestFrames: Map<number, number>[] = [];
+const borderFrames: Int32Array[] = [];
+let done = false;
+while (!done && gameRunnerHandler.turnNum < totalTurns) {
+  done = gameRunnerHandler.tick();
+  const turnNum = gameRunnerHandler.turnNum;
+  if (gr.game.inSpawnPhase()) continue;
+  if (turnNum % turnInterval === 0 || done || turnNum >= totalTurns) {
+    conquestFrames.push(new Map(conquestWindow));
+    conquestWindow.clear();
+    const border: number[] = [];
+    for (const p of gr.game.players()) {
+      for (const t of p.borderTiles()) border.push(t);
+    }
+    borderFrames.push(Int32Array.from(border));
+    if (borderFrames.length % 100 === 0) {
+      console.log(
+        `captured frame ${borderFrames.length} (turn ${turnNum}/${totalTurns})`,
+      );
+    }
+  }
+}
+console.log(
+  `Sim done: ${borderFrames.length} frames; rendering across cores...`,
 );
-tradeShipRoutes(
-  tradeShipHandler,
-  gr,
-  gameInfo,
-  gameRunnerHandler.mapLoader,
-  outFolder,
-);
+
+fs.mkdirSync(outFolder, { recursive: true });
+await createCombinedTimelapse({
+  outPath: path.join(outFolder, `${gameID}.mp4`),
+  width: gr.game.width(),
+  height: gr.game.height(),
+  background,
+  gradient: heatmap.gradient,
+  borderFrames,
+  conquestFrames,
+});
+console.log("Done");
