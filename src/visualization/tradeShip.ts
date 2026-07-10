@@ -41,10 +41,6 @@ export async function tradeShipRoutes(
       tileFrequency.set(tile, (tileFrequency.get(tile) ?? 0) + r.amount);
     }),
   );
-  let totalTileAmount = 0;
-  tileFrequency.forEach((a) => {
-    totalTileAmount += a;
-  });
   const heatmapData = await heatmapMaker.create(tileFrequency);
   if (heatmapData) {
     const png = new PNG({

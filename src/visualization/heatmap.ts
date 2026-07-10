@@ -41,7 +41,6 @@ export class heatmapCreator {
     }
     const width = this.width;
     const height = this.height;
-    const radius = this.radius;
     let mapArray = await (this.compact
       ? this.map.map4xBin()
       : this.map.mapBin());
@@ -52,105 +51,124 @@ export class heatmapCreator {
     return background;
   }
 
-  async create(tileFrequencies: Map<number, number>, frequencyWorth = 0.01) {
-    const game = this.game;
+  async create(tileFrequencies: Map<number, number>) {
     const width = this.width;
     const height = this.height;
     const radius = this.radius;
     const radiusSq = this.radiusSq;
-    let heatAlpha = new Float32Array(width * height);
-    const heatmapData = new Uint8ClampedArray(width * height * 4);
-    let maxHeat = 0;
-    if (tileFrequencies.size > 0) {
-      for (const tileFrequency of tileFrequencies.entries()) {
-        const x = game.x(tileFrequency[0]);
-        const y = game.y(tileFrequency[0]);
-        const value = tileFrequency[1] * frequencyWorth;
-        const xStart = Math.max(0, Math.floor(x - radius));
-        const xEnd = Math.min(width - 1, Math.ceil(x + radius));
-        const yStart = Math.max(0, Math.floor(y - radius));
-        const yEnd = Math.min(height - 1, Math.ceil(y + radius));
-        for (let py = yStart; py <= yEnd; py++) {
-          for (let px = xStart; px <= xEnd; px++) {
-            const dx = px - x;
-            const dy = py - y;
-            const distSq = dx * dx + dy * dy;
-            if (distSq > radiusSq) continue;
-
-            const dist = Math.sqrt(distSq);
-            const norm = dist / radius;
-            const intensity = value * Math.exp(-3 * norm * norm);
-
-            const idx = py * width + px;
-            heatAlpha[idx] += intensity;
-          }
-        }
-      }
-
-      for (const value of heatAlpha) {
-        if (value > maxHeat) maxHeat = value;
-      }
-    }
-    for (let i = 0; i < width * height; i++) {
-      const alpha =
-        maxHeat > 0 ? Math.log2(heatAlpha[i] + 1) / Math.log2(maxHeat + 1) : 0;
-      const [r, g, b, a] = this.interpolateColor(alpha);
-
-      const idx = i * 4;
-      heatmapData[idx] = r;
-      heatmapData[idx + 1] = g;
-      heatmapData[idx + 2] = b;
-      heatmapData[idx + 3] = a;
-    }
     const background = await this.mapBackground();
     if (!background) return;
-    const heatmap = new Uint8ClampedArray(width * height * 4);
-    for (let i = 0; i < heatmapData.length; i += 4) {
-      const ha = heatmapData[i + 3] / 255;
-
-      const br = background[i];
-      const bg = background[i + 1];
-      const bb = background[i + 2];
-      if (ha === 0) {
-        heatmap[i] = br;
-        heatmap[i + 1] = bg;
-        heatmap[i + 2] = bb;
-        heatmap[i + 3] = 255;
-        continue;
-      }
-      const hr = heatmapData[i];
-      const hg = heatmapData[i + 1];
-      const hb = heatmapData[i + 2];
-      heatmap[i] = Math.round(hr * ha + br * (1 - ha));
-      heatmap[i + 1] = Math.round(hg * ha + bg * (1 - ha));
-      heatmap[i + 2] = Math.round(hb * ha + bb * (1 - ha));
-      heatmap[i + 3] = 255;
-    }
-    return heatmap;
-  }
-  private lerp(a: number, b: number, t: number) {
-    return a + (b - a) * t;
+    return createHeatmap(tileFrequencies, width, height, radius, radiusSq, background, this.gradient)
   }
   private interpolateColor(t: number) {
-    const gradient = this.gradient;
-    t = Math.max(0, Math.min(1, t));
-    let start = gradient[0];
-    let end = gradient[gradient.length - 1];
-    for (let i = 0; i < gradient.length - 1; i++) {
-      if (t >= gradient[i].stop && t <= gradient[i + 1].stop) {
-        start = gradient[i];
-        end = gradient[i + 1];
-        break;
+    return interpolateColor(t, this.gradient);
+  }
+}
+export function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * t;
+}
+export function interpolateColor(
+  t: number,
+  gradient: Gradient,
+): [number, number, number, number] {
+  t = Math.max(0, Math.min(1, t));
+  let start = gradient[0];
+  let end = gradient[gradient.length - 1];
+  for (let i = 0; i < gradient.length - 1; i++) {
+    if (t >= gradient[i].stop && t <= gradient[i + 1].stop) {
+      start = gradient[i];
+      end = gradient[i + 1];
+      break;
+    }
+  }
+  const localT = (t - start.stop) / (end.stop - start.stop);
+
+  // Interpolate each channel
+  const r = Math.round(lerp(start.color[0], end.color[0], localT));
+  const g = Math.round(lerp(start.color[1], end.color[1], localT));
+  const b = Math.round(lerp(start.color[2], end.color[2], localT));
+  const a = Math.round(lerp(start.color[3], end.color[3], localT));
+
+  return [r, g, b, a];
+}
+export function createHeatmap(
+  tileFrequencies:
+    | Map<number, number>
+    | { tiles: Int32Array; counts: Float64Array },
+  width: number,
+  height: number,
+  radius: number,
+  radiusSq: number,
+  base: Uint8ClampedArray,
+  gradient: Gradient,
+): Uint8ClampedArray {
+  let heatAlpha = new Float32Array(width * height);
+  const heatmapData = new Uint8ClampedArray(width * height * 4);
+  let maxHeat = 0;
+  if (tileFrequencies instanceof Map) {
+    tileFrequencies = {
+      tiles: Int32Array.from(tileFrequencies.keys()),
+      counts: Float64Array.from(tileFrequencies.values()),
+    };
+  }
+  const { counts, tiles } = tileFrequencies;
+  for (let k = 0; k < tiles.length; k++) {
+    const ref = tiles[k];
+    const value = counts[k] * 0.01;
+
+    const x = ref % width;
+    const y = (ref / width) | 0;
+
+    const xStart = Math.max(0, Math.floor(x - radius));
+    const xEnd = Math.min(width - 1, Math.ceil(x + radius));
+    const yStart = Math.max(0, Math.floor(y - radius));
+    const yEnd = Math.min(height - 1, Math.ceil(y + radius));
+
+    for (let py = yStart; py <= yEnd; py++) {
+      for (let px = xStart; px <= xEnd; px++) {
+        const dx = px - x;
+        const dy = py - y;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq > radiusSq) continue;
+
+        const norm = Math.sqrt(distSq) / radius;
+
+        heatAlpha[py * width + px] += value * Math.exp(-3 * norm * norm);
       }
     }
-    const localT = (t - start.stop) / (end.stop - start.stop);
-
-    // Interpolate each channel
-    const r = Math.round(this.lerp(start.color[0], end.color[0], localT));
-    const g = Math.round(this.lerp(start.color[1], end.color[1], localT));
-    const b = Math.round(this.lerp(start.color[2], end.color[2], localT));
-    const a = Math.round(this.lerp(start.color[3], end.color[3], localT));
-
-    return [r, g, b, a];
   }
+
+  for (const value of heatAlpha) {
+    if (value > maxHeat) maxHeat = value;
+  }
+
+  const out = new Uint8ClampedArray(width * height * 4);
+
+  const denom = maxHeat > 0 ? Math.log2(maxHeat + 1) : 0;
+
+  for (let i = 0; i < width * height; i++) {
+    const idx = i * 4;
+
+    const alpha = maxHeat > 0 ? Math.log2(heatAlpha[i] + 1) / denom : 0;
+
+    const [r, g, b, a] = interpolateColor(alpha, gradient);
+
+    const ha = a / 255;
+
+    if (ha === 0) {
+      out[idx] = base[idx];
+      out[idx + 1] = base[idx + 1];
+      out[idx + 2] = base[idx + 2];
+      out[idx + 3] = 255;
+      continue;
+    }
+
+    out[idx] = Math.round(r * ha + base[idx] * (1 - ha));
+    out[idx + 1] = Math.round(g * ha + base[idx + 1] * (1 - ha));
+    out[idx + 2] = Math.round(b * ha + base[idx + 2] * (1 - ha));
+    out[idx + 3] = 255;
+  }
+
+  return out;
 }
