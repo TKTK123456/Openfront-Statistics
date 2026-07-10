@@ -10,6 +10,7 @@ import {
 import { heatmapCreator } from "./visualization/heatmap";
 import { createCombinedTimelapse } from "./visualization/timelapse";
 import { GameMapSize } from "../OpenFrontIO/src/core/game/Game";
+import { TileConqueredHandler } from "./handlers/conqueredTiles";
 
 const outFolder = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -17,7 +18,7 @@ const outFolder = path.join(
 );
 const gameID = process.argv[2] ?? "kgQ2yuYJ";
 // Turns condensed into each frame; played back at 30fps.
-const turnInterval = 3;
+const turnInterval = 17;
 
 const gameInfo = await fetchGame(gameID);
 if (gameInfo[0] === undefined) throw new Error(`could not load game ${gameID}`);
@@ -37,24 +38,24 @@ const heatmap = new heatmapCreator(
 const background = await heatmap.mapBackground();
 if (!background) throw new Error("failed to load map background");
 
-// Conquest tally for the current window, reset each frame. Kept local so this
-// entry point stays independent of the other visualizations' handlers.
-const conquestWindow = new Map<number, number>();
-gameRunnerHandler.setHandlers([], {
-  players: {
-    conquerTiles: [
-      (tile: number) =>
-        conquestWindow.set(tile, (conquestWindow.get(tile) ?? 0) + 1),
-    ],
-  },
-});
+const tilesConquredHandler = new TileConqueredHandler(turnInterval, gr, totalTurns)
 
+gameRunnerHandler.setHandlers(
+  [
+    tilesConquredHandler.tickHandler
+  ],
+  {
+    players: {
+      conquerTiles: [
+        tilesConquredHandler.conqueredTile
+      ],
+    },
+  },
+);
+gameRunnerHandler.start();
 // Drive the (sequential) sim. At each frame boundary snapshot the conquest
 // window and the current country outlines together, so they stay aligned.
-const conquestFrames: Map<number, number>[] = [];
-const borderFrames: Int32Array[] = [];
-let done = false;
-while (!done && gameRunnerHandler.turnNum < totalTurns) {
+/*while (!done && gameRunnerHandler.turnNum < totalTurns) {
   done = gameRunnerHandler.tick();
   const turnNum = gameRunnerHandler.turnNum;
   if (gr.game.inSpawnPhase()) continue;
@@ -72,11 +73,12 @@ while (!done && gameRunnerHandler.turnNum < totalTurns) {
       );
     }
   }
-}
+}*/
 console.log(
-  `Sim done: ${borderFrames.length} frames; rendering across cores...`,
+  `Sim done: ${tilesConquredHandler.borderFrames.length} frames; rendering across cores...`,
 );
-
+const borderFrames: Int32Array[] = tilesConquredHandler.borderFrames
+const conquestFrames: Map<number, number>[] = tilesConquredHandler.conquestFrames
 fs.mkdirSync(outFolder, { recursive: true });
 await createCombinedTimelapse({
   outPath: path.join(outFolder, `${gameID}.mp4`),

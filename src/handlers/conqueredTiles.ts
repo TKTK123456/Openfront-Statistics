@@ -16,19 +16,12 @@ export class TileConqueredHandler {
   }
 
   conqueredTilesTotal: Map<number, number> = new Map();
-  conqueredTilesShort: Map<number, number> = new Map();
-  conqueredTilesFullGame: Map<number, number>[] = [];
-  conqueredTilesMiddleShort: Map<number, number> = new Map();
+  conquestWindow: Map<number, number> = new Map();
+  conquestFrames: Map<number, number>[] = [];
+  borderFrames: Int32Array[] = [];
 
   conqueredTile = (tile: number) => {
-    this.conqueredTilesShort.set(
-      tile,
-      (this.conqueredTilesShort.get(tile) ?? 0) + 1,
-    );
-    this.conqueredTilesMiddleShort.set(
-      tile,
-      (this.conqueredTilesMiddleShort.get(tile) ?? 0) + 1,
-    );
+    this.conquestWindow.set(tile, (this.conquestWindow.get(tile) ?? 0) + 1)
     this.conqueredTilesTotal.set(
       tile,
       (this.conqueredTilesTotal.get(tile) ?? 0) + 1,
@@ -36,31 +29,12 @@ export class TileConqueredHandler {
   };
 
   tickHandler = (g: GameUpdateViewData | ErrorUpdate, turnNum: number) => {
-    if (
-      (!this.gr.game.inSpawnPhase() &&
-        (turnNum + this.turnInterval / 2 + 1) % this.turnInterval === 0) ||
-      turnNum >= this.totalTurns - 1 ||
-      this.gr.game.getWinner() !== null
-    ) {
-      let tempMap = new Map();
-      for (let tile of this.conqueredTilesMiddleShort.entries()) {
-        tempMap.set(tile[0], tile[1]);
+    this.conquestFrames.push(new Map(this.conquestWindow));
+      this.conquestWindow.clear();
+      const border: number[] = [];
+      for (const p of this.gr.game.players()) {
+        for (const t of p.borderTiles()) border.push(t);
       }
-      this.conqueredTilesFullGame.push(tempMap);
-      this.conqueredTilesMiddleShort.clear();
-    }
-    if (
-      (this.gr.game.inSpawnPhase() ||
-        (turnNum + 1) % this.turnInterval !== 0) &&
-      turnNum < this.totalTurns - 1 &&
-      this.gr.game.getWinner() == null
-    )
-      return;
-    let tempMap = new Map();
-    for (let tile of this.conqueredTilesShort.entries()) {
-      tempMap.set(tile[0], tile[1]);
-    }
-    this.conqueredTilesFullGame.push(tempMap);
-    this.conqueredTilesShort.clear();
+      this.borderFrames.push(Int32Array.from(border));
   };
 }

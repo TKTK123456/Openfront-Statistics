@@ -43,11 +43,13 @@ export class handleGameRunner {
     g: GameUpdateViewData | ErrorUpdate,
   ) => {
     if (
-      (!this.gr.game.inSpawnPhase() &&
-        (this.turnNum + 1) % this.config.turnInterval === 0) ||
-      (this.turnNum >= this.totalTurns - 1 && this.gr.game.getWinner() == null)
+      (this.gr.game.inSpawnPhase() ||
+        (this.turnNum + 1) % this.config.turnInterval !== 0) &&
+      this.turnNum < this.totalTurns - 1 &&
+      this.gr.game.getWinner() == null
     )
-      console.log(this.turnNum + 1 + "/" + this.totalTurns);
+      return;
+    console.log(this.turnNum + 1 + "/" + this.totalTurns);
     for (const handler of this.updateHandlers) {
       handler(g, this.turnNum);
     }
