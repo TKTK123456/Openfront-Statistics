@@ -24,7 +24,7 @@ export async function createCombinedTimelapse(opts: {
   await encoder.open();
 
   await renderFramesToVideo({
-    workerUrl: new URL("../workers/timelapseWorker.mjs", import.meta.url),
+    workerUrl: new URL("../workers/timelapseWorker.ts", import.meta.url),
     workerData: {
       background: background.buffer,
       width,
@@ -45,13 +45,17 @@ export async function createCombinedTimelapse(opts: {
         counts[k] = count;
         k++;
       }
+      const borderBuffer = border.buffer as ArrayBuffer;
+      const tilesBuffer = tiles.buffer as ArrayBuffer;
+      const countsBuffer = counts.buffer as ArrayBuffer;
+
       return {
         message: {
-          borderTiles: border.buffer,
-          tiles: tiles.buffer,
-          counts: counts.buffer,
+          borderTiles: borderBuffer,
+          tiles: tilesBuffer,
+          counts: countsBuffer,
         },
-        transfer: [border.buffer, tiles.buffer, counts.buffer],
+        transfer: [borderBuffer, tilesBuffer, countsBuffer],
       };
     },
     encoder,

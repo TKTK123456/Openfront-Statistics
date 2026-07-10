@@ -1,4 +1,5 @@
 import { Worker } from "worker_threads";
+import type { Transferable } from "worker_threads";
 import { availableParallelism } from "os";
 import { VideoEncoder } from "../visualization/encode";
 
@@ -11,7 +12,7 @@ export async function renderFramesToVideo(params: {
   frameCount: number;
   frameInput: (i: number) => {
     message: Record<string, unknown>;
-    transfer: ArrayBuffer[];
+    transfer: Transferable[];
   };
   encoder: VideoEncoder; // already opened
   onProgress?: (written: number) => void;
