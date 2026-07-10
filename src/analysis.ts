@@ -26,7 +26,7 @@ const options: ParseArgsOptionsConfig = {
   turnInterval: {
     type: "string",
     short: "p",
-    default: "100",
+    default: "17",
   },
   handlers: {
     type: "string",

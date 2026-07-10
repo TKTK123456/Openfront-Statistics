@@ -38,20 +38,17 @@ const heatmap = new heatmapCreator(
 const background = await heatmap.mapBackground();
 if (!background) throw new Error("failed to load map background");
 
-const tilesConquredHandler = new TileConqueredHandler(turnInterval, gr, totalTurns)
-
-gameRunnerHandler.setHandlers(
-  [
-    tilesConquredHandler.tickHandler
-  ],
-  {
-    players: {
-      conquerTiles: [
-        tilesConquredHandler.conqueredTile
-      ],
-    },
-  },
+const tilesConquredHandler = new TileConqueredHandler(
+  turnInterval,
+  gr,
+  totalTurns,
 );
+
+gameRunnerHandler.setHandlers([tilesConquredHandler.tickHandler], {
+  players: {
+    conquerTiles: [tilesConquredHandler.conqueredTile],
+  },
+});
 gameRunnerHandler.start();
 // Drive the (sequential) sim. At each frame boundary snapshot the conquest
 // window and the current country outlines together, so they stay aligned.
@@ -77,8 +74,9 @@ gameRunnerHandler.start();
 console.log(
   `Sim done: ${tilesConquredHandler.borderFrames.length} frames; rendering across cores...`,
 );
-const borderFrames: Int32Array[] = tilesConquredHandler.borderFrames
-const conquestFrames: Map<number, number>[] = tilesConquredHandler.conquestFrames
+const borderFrames: Int32Array[] = tilesConquredHandler.borderFrames;
+const conquestFrames: Map<number, number>[] =
+  tilesConquredHandler.conquestFrames;
 fs.mkdirSync(outFolder, { recursive: true });
 await createCombinedTimelapse({
   outPath: path.join(outFolder, `${gameID}.mp4`),

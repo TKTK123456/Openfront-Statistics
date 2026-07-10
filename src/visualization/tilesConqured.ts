@@ -8,6 +8,7 @@ import { GameMapSize } from "../../OpenFrontIO/src/core/game/Game";
 import { encodeVideo } from "./encode";
 import { heatmapCreator } from "./heatmap";
 import fs from "fs";
+import { createCombinedTimelapse } from "./timelapse";
 
 let heatmapMaker: heatmapCreator;
 
@@ -74,26 +75,22 @@ export async function createTilesConquredHeatmap(
     }
   }
   if (options.video) {
-    for (
-      let i = 0;
-      i < tileConqueredHandler.conqueredTilesFullGame.length;
-      i++
-    ) {
-      const heatmapData = await heatmapMaker.create(
-        tileConqueredHandler.conqueredTilesFullGame[i],
-      );
-      console.log(
-        `Created heatmap ${i + 1}/${tileConqueredHandler.conqueredTilesFullGame.length}`,
-      );
-      if (heatmapData) videoData.push(heatmapData);
-    }
-    encodeVideo(
-      `${fileNames.video}`,
-      videoData,
-      gr.game.width(),
-      gr.game.height(),
-      10,
-    );
+    const borderFrames: Int32Array[] = tileConqueredHandler.borderFrames;
+    const conquestFrames: Map<number, number>[] =
+      tileConqueredHandler.conquestFrames;
+    const outPath: string = fileNames.video;
+
+    const background = await heatmapMaker.mapBackground();
+    if (!background) throw new Error("failed to load map background");
+    await createCombinedTimelapse({
+      outPath,
+      width: gr.game.width(),
+      height: gr.game.height(),
+      background,
+      gradient: heatmapMaker.gradient,
+      borderFrames,
+      conquestFrames,
+    });
   }
   console.log("Done");
 }
