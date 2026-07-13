@@ -30,7 +30,7 @@ export async function createCombinedTimelapse(opts: {
       width,
       height,
       radius: 10,
-      gradient
+      gradient,
     },
     frameCount,
     frameInput: (i) => {

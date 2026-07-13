@@ -21,8 +21,7 @@ interface RenderMessage {
   counts: ArrayBufferLike;
 }
 
-const { width, height, radius, gradient } =
-  workerData as WorkerData;
+const { width, height, radius, gradient } = workerData as WorkerData;
 
 const background = new Uint8ClampedArray((workerData as WorkerData).background);
 

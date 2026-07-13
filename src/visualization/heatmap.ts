@@ -58,7 +58,15 @@ export class heatmapCreator {
     const radiusSq = this.radiusSq;
     const background = await this.mapBackground();
     if (!background) return;
-    return createHeatmap(tileFrequencies, width, height, radius, radiusSq, background, this.gradient)
+    return createHeatmap(
+      tileFrequencies,
+      width,
+      height,
+      radius,
+      radiusSq,
+      background,
+      this.gradient,
+    );
   }
   private interpolateColor(t: number) {
     return interpolateColor(t, this.gradient);

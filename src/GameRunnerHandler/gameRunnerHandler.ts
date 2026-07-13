@@ -11,10 +11,12 @@ import {
   ErrorUpdate,
 } from "../../OpenFrontIO/src/core/game/GameUpdates";
 import { TradeShipExecution } from "../../OpenFrontIO/src/core/execution/TradeShipExecution";
+import { Unit } from "../../OpenFrontIO/src/core/game/Game";
 
 export interface OtherHandlers {
   players?: {
     conquerTiles?: ((tile: number) => void)[];
+    unitCaptured?: ((target: Unit) => void)[];
   };
   executions?: {
     tradeShip?: ((self: TradeShipExecution) => void)[];
@@ -124,6 +126,18 @@ export class handleGameRunner {
               handler(tile);
             }
             return oldConquer(tile);
+          };
+        });
+      }
+      const unitCapturedHandlers = this.otherHandlers?.players?.unitCaptured;
+      if (unitCapturedHandlers && unitCapturedHandlers.length > 0) {
+        gr.game.allPlayers().forEach((p) => {
+          const oldCapture = p.captureUnit.bind(p);
+          p.captureUnit = (target: Unit) => {
+            for (const handler of unitCapturedHandlers) {
+              handler(target);
+            }
+            return oldCapture(target);
           };
         });
       }
