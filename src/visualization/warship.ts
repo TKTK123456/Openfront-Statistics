@@ -29,7 +29,7 @@ export async function piratingHeatmap(
       gameInfo[0].config.gameMapSize === GameMapSize.Compact,
     );
   let tileFrequency: Map<number, number> = warshipHandler.capturedShipTiles;
-  const heatmapData = await heatmapMaker.create(tileFrequency);
+  const heatmapData = await heatmapMaker.create(tileFrequency, 5);
   if (heatmapData) {
     const png = new PNG({
       width: gr.game.width(),

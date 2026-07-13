@@ -51,7 +51,10 @@ export class heatmapCreator {
     return background;
   }
 
-  async create(tileFrequencies: Map<number, number>) {
+  async create(
+    tileFrequencies: Map<number, number>,
+    FrequencieMultiplier: number = 0.01,
+  ) {
     const width = this.width;
     const height = this.height;
     const radius = this.radius;
@@ -66,6 +69,7 @@ export class heatmapCreator {
       radiusSq,
       background,
       this.gradient,
+      FrequencieMultiplier,
     );
   }
   private interpolateColor(t: number) {
@@ -109,9 +113,9 @@ export function createHeatmap(
   radiusSq: number,
   base: Uint8ClampedArray,
   gradient: Gradient,
+  FrequencieMultiplier: number = 0.01,
 ): Uint8ClampedArray {
   let heatAlpha = new Float32Array(width * height);
-  const heatmapData = new Uint8ClampedArray(width * height * 4);
   let maxHeat = 0;
   if (tileFrequencies instanceof Map) {
     tileFrequencies = {
@@ -122,7 +126,7 @@ export function createHeatmap(
   const { counts, tiles } = tileFrequencies;
   for (let k = 0; k < tiles.length; k++) {
     const ref = tiles[k];
-    const value = counts[k] * 0.01;
+    const value = counts[k] * FrequencieMultiplier;
 
     const x = ref % width;
     const y = (ref / width) | 0;
@@ -131,7 +135,6 @@ export function createHeatmap(
     const xEnd = Math.min(width - 1, Math.ceil(x + radius));
     const yStart = Math.max(0, Math.floor(y - radius));
     const yEnd = Math.min(height - 1, Math.ceil(y + radius));
-
     for (let py = yStart; py <= yEnd; py++) {
       for (let px = xStart; px <= xEnd; px++) {
         const dx = px - x;
