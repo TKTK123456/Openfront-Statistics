@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { TileConqueredHandler } from "../src/handlers/conqueredTiles";
 import { fetchGame } from "../src/util/util";
 import {
-  Config,
+  gameRunnerHandlerConfig,
   handleGameRunner,
 } from "../src/GameRunnerHandler/gameRunnerHandler";
 import { createTilesConquredHeatmap } from "../src/visualization/tilesConqured";
@@ -25,7 +25,7 @@ const totalTurns = gameInfo[1].length;
 let gr: GameRunner;
 
 let tileConqueredHandler: TileConqueredHandler;
-const config: Config = {
+const config: gameRunnerHandlerConfig = {
   turnInterval,
 };
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
 import {
-  Config,
+  gameRunnerHandlerConfig,
   handleGameRunner,
   OtherHandlers,
 } from "./GameRunnerHandler/gameRunnerHandler";
@@ -207,7 +207,7 @@ const main = async () => {
 
   let gr: GameRunner;
   const handlers = new Handlers(args.handlers);
-  const config: Config = {
+  const config: gameRunnerHandlerConfig = {
     turnInterval,
   };
 

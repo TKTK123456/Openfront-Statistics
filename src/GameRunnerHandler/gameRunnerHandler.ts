@@ -24,7 +24,7 @@ export interface OtherHandlers {
   };
 }
 
-export interface Config {
+export interface gameRunnerHandlerConfig {
   turnInterval: number;
 }
 
@@ -40,7 +40,7 @@ export class handleGameRunner {
     g: GameUpdateViewData | ErrorUpdate,
     turnNum: number,
   ) => void)[];
-  public config: Config;
+  public config: gameRunnerHandlerConfig;
   private updateHandler: (g: GameUpdateViewData | ErrorUpdate) => void = (
     g: GameUpdateViewData | ErrorUpdate,
   ) => {
@@ -59,7 +59,10 @@ export class handleGameRunner {
   private otherHandlers: OtherHandlers | undefined;
   private initializedHandlers: { players: boolean } = { players: false };
   public totalTurns: number;
-  constructor(gameInfo: [GameStartInfo | undefined, Turn[]], config: Config) {
+  constructor(
+    gameInfo: [GameStartInfo | undefined, Turn[]],
+    config: gameRunnerHandlerConfig,
+  ) {
     if (gameInfo[0] === undefined) return;
     this.gameConfig = gameInfo[0];
     this.turns = gameInfo[1];

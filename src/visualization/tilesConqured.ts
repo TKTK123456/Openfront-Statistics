@@ -5,7 +5,6 @@ import { GameStartInfo, Turn } from "../../OpenFrontIO/src/core/Schemas";
 import { gameMapLoader } from "src/util/util";
 import { PNG } from "pngjs";
 import { GameMapSize } from "../../OpenFrontIO/src/core/game/Game";
-import { encodeVideo } from "./encode";
 import { heatmapCreator } from "./heatmap";
 import fs from "fs";
 import { createCombinedTimelapse } from "./timelapse";

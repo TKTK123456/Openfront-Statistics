@@ -4,7 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { fetchGame } from "./util/util";
 import {
-  Config,
+  gameRunnerHandlerConfig,
   handleGameRunner,
 } from "./GameRunnerHandler/gameRunnerHandler";
 import { heatmapCreator } from "./visualization/heatmap";
@@ -24,7 +24,7 @@ const gameInfo = await fetchGame(gameID);
 if (gameInfo[0] === undefined) throw new Error(`could not load game ${gameID}`);
 const totalTurns = gameInfo[1].length;
 
-const config: Config = { turnInterval };
+const config: gameRunnerHandlerConfig = { turnInterval };
 const gameRunnerHandler = new handleGameRunner(gameInfo, config);
 await gameRunnerHandler.init();
 const gr: GameRunner = gameRunnerHandler.gr;
@@ -50,27 +50,6 @@ gameRunnerHandler.setHandlers([tilesConquredHandler.tickHandler], {
   },
 });
 gameRunnerHandler.start();
-// Drive the (sequential) sim. At each frame boundary snapshot the conquest
-// window and the current country outlines together, so they stay aligned.
-/*while (!done && gameRunnerHandler.turnNum < totalTurns) {
-  done = gameRunnerHandler.tick();
-  const turnNum = gameRunnerHandler.turnNum;
-  if (gr.game.inSpawnPhase()) continue;
-  if (turnNum % turnInterval === 0 || done || turnNum >= totalTurns) {
-    conquestFrames.push(new Map(conquestWindow));
-    conquestWindow.clear();
-    const border: number[] = [];
-    for (const p of gr.game.players()) {
-      for (const t of p.borderTiles()) border.push(t);
-    }
-    borderFrames.push(Int32Array.from(border));
-    if (borderFrames.length % 100 === 0) {
-      console.log(
-        `captured frame ${borderFrames.length} (turn ${turnNum}/${totalTurns})`,
-      );
-    }
-  }
-}*/
 console.log(
   `Sim done: ${tilesConquredHandler.borderFrames.length} frames; rendering across cores...`,
 );
