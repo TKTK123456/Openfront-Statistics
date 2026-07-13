@@ -5,7 +5,10 @@ export interface GradientStop {
   stop: number;
   color: [number, number, number, number];
 }
-
+export interface heatmapConfig {
+  radius?: number;
+  frequencieMultiplier?: number;
+}
 export type Gradient = GradientStop[];
 export class heatmapCreator {
   private radius = 10;
@@ -53,12 +56,16 @@ export class heatmapCreator {
 
   async create(
     tileFrequencies: Map<number, number>,
-    FrequencieMultiplier: number = 0.01,
+    config: heatmapConfig = { frequencieMultiplier: 0.01, radius: this.radius },
   ) {
+    let radiusSq: number;
+    let { frequencieMultiplier, radius } = config;
+    if (radius === undefined) radius = this.radius;
+    if (radius !== this.radius) radiusSq = radius ** 2;
+    else radiusSq = this.radiusSq;
+    if (frequencieMultiplier === undefined) frequencieMultiplier = 0.01;
     const width = this.width;
     const height = this.height;
-    const radius = this.radius;
-    const radiusSq = this.radiusSq;
     const background = await this.mapBackground();
     if (!background) return;
     return createHeatmap(
@@ -69,11 +76,8 @@ export class heatmapCreator {
       radiusSq,
       background,
       this.gradient,
-      FrequencieMultiplier,
+      frequencieMultiplier,
     );
-  }
-  private interpolateColor(t: number) {
-    return interpolateColor(t, this.gradient);
   }
 }
 export function lerp(a: number, b: number, t: number) {
@@ -113,7 +117,7 @@ export function createHeatmap(
   radiusSq: number,
   base: Uint8ClampedArray,
   gradient: Gradient,
-  FrequencieMultiplier: number = 0.01,
+  frequencieMultiplier: number = 0.01,
 ): Uint8ClampedArray {
   let heatAlpha = new Float32Array(width * height);
   let maxHeat = 0;
@@ -126,7 +130,7 @@ export function createHeatmap(
   const { counts, tiles } = tileFrequencies;
   for (let k = 0; k < tiles.length; k++) {
     const ref = tiles[k];
-    const value = counts[k] * FrequencieMultiplier;
+    const value = counts[k] * frequencieMultiplier;
 
     const x = ref % width;
     const y = (ref / width) | 0;
