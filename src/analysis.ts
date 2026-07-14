@@ -19,7 +19,152 @@ import { TradeShipHandler } from "./handlers/tradeShip";
 import { tradeShipRoutes } from "./visualization/tradeShip";
 import { WarshipHandler } from "./handlers/warship";
 import { piratingHeatmap } from "./visualization/warship";
+import { GameStartInfo, Turn } from "../OpenFrontIO/src/core/Schemas";
+const startTime = Date.now();
+const HANDLER_NAMES = ["tilesConquered", "tradeShipRoutes", "pirating", "all"];
+type HandlerName = (typeof HANDLER_NAMES)[number];
+class Handlers {
+  public turnInterval: number;
+  public gr: GameRunner;
+  public totalTurns: number;
+  public gameRunnerHandler: handleGameRunner;
+  public gameInfo: [GameStartInfo | undefined, Turn[]];
+  public outFolder: string;
+  constructor(
+    handlerNames: (string | boolean)[],
+    turnInterval: number,
+    gr: GameRunner,
+    totalTurns: number,
+    gameRunnerHandler: handleGameRunner,
+    gameInfo: [GameStartInfo | undefined, Turn[]],
+    outFolder: string,
+  ) {
+    if (
+      !handlerNames.every(
+        (name): name is HandlerName =>
+          typeof name === "string" && name in this.handlerInits,
+      )
+    ) {
+      throw new Error("All handler names must be strings");
+    }
+    this.turnInterval = turnInterval;
+    this.gr = gr;
+    this.totalTurns = totalTurns;
+    this.handlerNames = handlerNames;
+    this.gameRunnerHandler = gameRunnerHandler;
+    this.gameInfo = gameInfo;
+    this.outFolder = outFolder;
+  }
+  public handlerNames: HandlerName[];
+  public allHandlers = {} as {
+    tilesConquered: TileConqueredHandler;
+    tradeShip: TradeShipHandler;
+    warships: WarshipHandler;
+  };
 
+  public allTickHandlers: ((
+    g: GameUpdateViewData | ErrorUpdate,
+    turnNum: number,
+  ) => void)[] = [];
+
+  public otherHandlers: OtherHandlers = {
+    players: {
+      conquerTiles: [],
+      unitCaptured: [],
+    },
+    executions: {
+      tradeShip: [],
+      tradeShipFinish: [],
+    },
+  };
+  public handlerInits: Record<HandlerName, () => void> = {
+    all: () => {
+      const entries = Object.entries(this.handlerInits).filter(
+        (k) => k[0] !== "all",
+      );
+
+      for (const [, func] of entries) {
+        func();
+      }
+    },
+    tilesConquered: () => {
+      const allHandlers = this.allHandlers;
+      const visualizations = this.visualizations;
+      const otherHandlers = this.otherHandlers;
+      allHandlers.tilesConquered = new TileConqueredHandler(
+        this.turnInterval,
+        this.gr,
+        this.totalTurns,
+      );
+      this.allTickHandlers.push(allHandlers.tilesConquered.tickHandler);
+      otherHandlers.players?.conquerTiles?.push(
+        allHandlers.tilesConquered.conqueredTile,
+      );
+      visualizations.push(async () => {
+        return await createTilesConquredHeatmap(
+          allHandlers.tilesConquered,
+          this.gr,
+          this.gameInfo,
+          this.gameRunnerHandler.mapLoader,
+          this.outFolder,
+        );
+      });
+    },
+    tradeShipRoutes: () => {
+      const allHandlers = this.allHandlers;
+      const visualizations = this.visualizations;
+      const otherHandlers = this.otherHandlers;
+      allHandlers.tradeShip = new TradeShipHandler(
+        this.turnInterval,
+        this.gr,
+        this.totalTurns,
+      );
+      otherHandlers.executions?.tradeShip?.push(
+        allHandlers.tradeShip.tradeShipExecHandler,
+      );
+      otherHandlers.executions?.tradeShipFinish?.push(
+        allHandlers.tradeShip.tradeShipFinishHandler,
+      );
+      visualizations.push(async () => {
+        return await tradeShipRoutes(
+          allHandlers.tradeShip,
+          this.gr,
+          this.gameInfo,
+          this.gameRunnerHandler.mapLoader,
+          this.outFolder,
+        );
+      });
+    },
+    pirating: () => {
+      const allHandlers = this.allHandlers;
+      const visualizations = this.visualizations;
+      const otherHandlers = this.otherHandlers;
+      allHandlers.warships ??= new WarshipHandler(
+        this.turnInterval,
+        this.gr,
+        this.totalTurns,
+      );
+      otherHandlers.players?.unitCaptured?.push(
+        allHandlers.warships.capturedTradeShip,
+      );
+      visualizations.push(async () => {
+        return await piratingHeatmap(
+          allHandlers.warships,
+          this.gr,
+          this.gameInfo,
+          this.gameRunnerHandler.mapLoader,
+          this.outFolder,
+        );
+      });
+    },
+  };
+  public visualizations: Array<() => Promise<void>> = [];
+  init = () => {
+    for (const handlerName of this.handlerNames) {
+      this.handlerInits[handlerName]();
+    }
+  };
+}
 function printHelp() {
   console.log(`
 Usage:
@@ -31,17 +176,16 @@ Required:
 Options:
   -p, --turnInterval <ms>    Turns between samples (default: 100)
   -t, --handlers <handler>   Handler(s) to enable
-                             Default: tilesConquered
-                             Can be specified multiple times:
-                               -t tilesConquered -t tradeShipRoutes
-                              Options are: tilesConqured, tradeShipRoutes and pirating
+                             Default: all
+                             Can be specified multiple times
+                             Options are: ${HANDLER_NAMES.slice(0, -1).join(", ")} and ${HANDLER_NAMES.at(-1)}
   -o, --out <folder>         Output folder (default: out)
   -h, --help                 Show this help message
 
 Examples:
   npm run analysis -- -i kgQ2yuYJ
   npm run analysis -- -i kgQ2yuYJ -p 50
-  npm run analysis -- -i kgQ2yuYJ -t tilesConquered
+  npm run analysis -- -i kgQ2yuYJ -t all
   npm run analysis -- -i kgQ2yuYJ -o results
 `);
 }
@@ -60,7 +204,7 @@ const main = async () => {
       type: "string",
       multiple: true,
       short: "t",
-      default: ["tilesConquered"],
+      default: ["all"],
     },
     out: {
       type: "string",
@@ -99,114 +243,7 @@ const main = async () => {
   const gameInfo = await fetchGame(gameID);
   const totalTurns = gameInfo[1].length;
 
-  class Handlers {
-    constructor(handlerNames: (string | boolean)[]) {
-      if (
-        !handlerNames.every((name): name is string => typeof name === "string")
-      ) {
-        throw new Error("All handler names must be strings");
-      }
-
-      this.handlerNames = handlerNames;
-    }
-    public handlerNames: string[];
-    public allHandlers = {} as {
-      tilesConquered: TileConqueredHandler;
-      tradeShip: TradeShipHandler;
-      warships: WarshipHandler;
-    };
-
-    public allTickHandlers: ((
-      g: GameUpdateViewData | ErrorUpdate,
-      turnNum: number,
-    ) => void)[] = [];
-
-    public otherHandlers: OtherHandlers = {
-      players: {
-        conquerTiles: [],
-        unitCaptured: [],
-      },
-      executions: {
-        tradeShip: [],
-        tradeShipFinish: [],
-      },
-    };
-
-    public visulizations: (() => void)[] = [];
-    init = () => {
-      const allHandlers = this.allHandlers;
-      const visulizations = this.visulizations;
-      const otherHandlers = this.otherHandlers;
-      for (const handlerName of this.handlerNames) {
-        switch (handlerName) {
-          case "tilesConquered":
-            allHandlers.tilesConquered = new TileConqueredHandler(
-              turnInterval,
-              gr,
-              totalTurns,
-            );
-            this.allTickHandlers.push(allHandlers.tilesConquered.tickHandler);
-            otherHandlers.players?.conquerTiles?.push(
-              allHandlers.tilesConquered.conqueredTile,
-            );
-            visulizations.push(() => {
-              createTilesConquredHeatmap(
-                allHandlers.tilesConquered,
-                gr,
-                gameInfo,
-                gameRunnerHandler.mapLoader,
-                outFolder,
-              );
-            });
-            break;
-          case "tradeShipRoutes":
-            allHandlers.tradeShip = new TradeShipHandler(
-              turnInterval,
-              gr,
-              totalTurns,
-            );
-            otherHandlers.executions?.tradeShip?.push(
-              allHandlers.tradeShip.tradeShipExecHandler,
-            );
-            otherHandlers.executions?.tradeShipFinish?.push(
-              allHandlers.tradeShip.tradeShipFinishHandler,
-            );
-            visulizations.push(() => {
-              tradeShipRoutes(
-                allHandlers.tradeShip,
-                gr,
-                gameInfo,
-                gameRunnerHandler.mapLoader,
-                outFolder,
-              );
-            });
-            break;
-          case "pirating":
-            allHandlers.warships ??= new WarshipHandler(
-              turnInterval,
-              gr,
-              totalTurns,
-            );
-            otherHandlers.players?.unitCaptured?.push(
-              allHandlers.warships.capturedTradeShip,
-            );
-            visulizations.push(() => {
-              piratingHeatmap(
-                allHandlers.warships,
-                gr,
-                gameInfo,
-                gameRunnerHandler.mapLoader,
-                outFolder,
-              );
-            });
-            break;
-        }
-      }
-    };
-  }
-
   let gr: GameRunner;
-  const handlers = new Handlers(args.handlers);
   const config: gameRunnerHandlerConfig = {
     turnInterval,
   };
@@ -214,18 +251,28 @@ const main = async () => {
   const gameRunnerHandler = new handleGameRunner(gameInfo, config);
   await gameRunnerHandler.init();
   gr = gameRunnerHandler.gr;
+  const handlers = new Handlers(
+    args.handlers,
+    turnInterval,
+    gr,
+    totalTurns,
+    gameRunnerHandler,
+    gameInfo,
+    outFolder,
+  );
   handlers.init();
   gameRunnerHandler.setHandlers(
     handlers.allTickHandlers,
     handlers.otherHandlers,
   );
   gameRunnerHandler.start();
-  for (const visualization of handlers.visulizations) {
-    visualization();
-  }
+  await Promise.all(
+    handlers.visualizations.map((visualization) => visualization()),
+  );
 };
 try {
   await main();
+  console.log(`Took ${Date.now() - startTime}ms`);
 } catch (err) {
   console.error(err);
   printHelp();
