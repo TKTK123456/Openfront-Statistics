@@ -9,6 +9,8 @@ export interface GameHanlderWorkerResult {
     [k: string]: number;
   }[];
   background: Uint8ClampedArray<ArrayBufferLike> | undefined;
+  tradeShipRoutesOutput: Uint8ClampedArray<ArrayBufferLike>;
+  pirating: Uint8ClampedArray<ArrayBufferLike>;
 }
 
 export function runGameHanlderWorker(

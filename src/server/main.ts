@@ -1,8 +1,6 @@
 // server/main.ts
 import express from "express";
 import path from "path";
-import { simGame } from "./simGame";
-import { createTilesConquredHeatmap } from "../visualization/tilesConqured";
 import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { runGameHanlderWorker } from "./runHandleGames";
@@ -18,26 +16,43 @@ app.set(
 
 app.use("/output", express.static("output"));
 
+function createImageBuffer(
+  config: {
+    width: number;
+    height: number;
+  },
+  data: Uint8ClampedArray,
+) {
+  const img = new PNG(config);
+  img.data.set(data);
+  return PNG.sync.write(img);
+}
+
 app.get("/game/:id", async (req, res) => {
   try {
     const output = await runGameHanlderWorker(req.params.id);
-    const png = new PNG({
-      width: output.width,
-      height: output.height,
-    });
-
-    png.data.set(output.fullGame);
-
-    const imageBuffer = PNG.sync.write(png);
+    const width = output.width;
+    const height = output.height;
+    const imgConfig = { width, height };
+    const conqueredTilesImageBuffer = createImageBuffer(
+      imgConfig,
+      output.fullGame,
+    );
+    const tradeShipRoutesImageBuffer = createImageBuffer(
+      imgConfig,
+      output.tradeShipRoutesOutput,
+    );
+    const piratingHeatmapBuffer = createImageBuffer(imgConfig, output.pirating);
 
     const conquestFramesJSON = output.conquestFrames;
 
     res.render("game", {
       gameId: req.params.id,
-      heatmap: imageBuffer.toString("base64"),
-      width: output.width,
-      height: output.height,
-
+      conqueredTilesHeatmap: conqueredTilesImageBuffer.toString("base64"),
+      width,
+      height,
+      tradeShipRoutesImageBuffer: tradeShipRoutesImageBuffer.toString("base64"),
+      piratingHeatmapBuffer: piratingHeatmapBuffer.toString("base64"),
       background: Buffer.from(output.background!).toString("base64"),
       gradient: heatmapCreator.defaultGradient,
 

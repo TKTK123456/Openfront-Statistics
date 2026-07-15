@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Game <!= gameId !></title>
+    <title>Game <%= gameId %></title>
 
     <style>
       * {
@@ -69,8 +69,28 @@
       <div class="card">
         <h2>Conquered Tiles Heatmap</h2>
 
-        <% if (heatmap) { %>
-        <img src="data:image/png;base64,<%= heatmap %>" />
+        <% if (conqueredTilesHeatmap) { %>
+        <img src="data:image/png;base64,<%= conqueredTilesHeatmap %>" />
+        <% } else { %>
+        <p>No heatmap generated.</p>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <h2>Trade Ship Routes Heatmap</h2>
+
+        <% if (tradeShipRoutesImageBuffer) { %>
+        <img src="data:image/png;base64,<%= tradeShipRoutesImageBuffer %>" />
+        <% } else { %>
+        <p>No heatmap generated.</p>
+        <% } %>
+      </div>
+
+      <div class="card">
+        <h2>Pirating Heatmap</h2>
+
+        <% if (piratingHeatmapBuffer) { %>
+        <img src="data:image/png;base64,<%= piratingHeatmapBuffer %>" />
         <% } else { %>
         <p>No heatmap generated.</p>
         <% } %>
