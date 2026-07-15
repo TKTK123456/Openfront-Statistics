@@ -13,6 +13,9 @@ import {
 import { TradeShipExecution } from "../../OpenFrontIO/src/core/execution/TradeShipExecution";
 import { Unit } from "../../OpenFrontIO/src/core/game/Game";
 
+let originalTradeShipTick: ((ticks: number) => void) | undefined = undefined;
+let originalTradeShipComplete: (() => void) | undefined = undefined;
+
 export interface OtherHandlers {
   players?: {
     conquerTiles?: ((tile: number) => void)[];
@@ -79,6 +82,7 @@ export class handleGameRunner {
     this.gr = await gameRunner;
     this.turnNum = 0;
   }
+  private cleanupHandlers: (() => void)[] = [];
   setHandlers(
     updateHandlers: ((
       g: GameUpdateViewData | ErrorUpdate,
@@ -87,33 +91,41 @@ export class handleGameRunner {
     otherHandlers?: OtherHandlers,
   ) {
     this.otherHandlers = otherHandlers;
-    if (otherHandlers?.players === undefined) {
-      this.initializedHandlers.players = true;
-    }
-    if (otherHandlers?.executions?.tradeShip !== undefined) {
+
+    if (otherHandlers?.executions?.tradeShip) {
       const oldTick = TradeShipExecution.prototype.tick;
       const tradeShip = otherHandlers.executions.tradeShip;
+
       TradeShipExecution.prototype.tick = function (ticks: number) {
         for (const handler of tradeShip) {
           handler(this);
         }
         return oldTick.call(this, ticks);
       };
-    }
-    if (otherHandlers?.executions?.tradeShipFinish !== undefined) {
-      const finish = otherHandlers.executions.tradeShipFinish;
-      const proto = TradeShipExecution.prototype as any;
 
-      const oldFinish = proto.complete;
+      this.cleanupHandlers.push(() => {
+        TradeShipExecution.prototype.tick = oldTick;
+      });
+    }
+
+    if (otherHandlers?.executions?.tradeShipFinish) {
+      const proto = TradeShipExecution.prototype as any;
+      const oldComplete = proto.complete;
+      const finish = otherHandlers.executions.tradeShipFinish;
 
       proto.complete = function () {
         for (const handler of finish) {
           handler(this);
         }
 
-        return oldFinish.call(this);
+        return oldComplete.call(this);
       };
+
+      this.cleanupHandlers.push(() => {
+        proto.complete = oldComplete;
+      });
     }
+
     this.updateHandlers = updateHandlers;
   }
   tick() {
@@ -123,24 +135,30 @@ export class handleGameRunner {
       const conqueredTileHandlers = this.otherHandlers?.players?.conquerTiles;
       if (conqueredTileHandlers && conqueredTileHandlers.length > 0) {
         gr.game.allPlayers().forEach((p) => {
-          const oldConquer = p.conquer.bind(p);
+          const oldConquer = p.conquer;
+          this.cleanupHandlers.push(() => {
+            p.conquer = oldConquer;
+          });
           p.conquer = (tile: number) => {
             for (const handler of conqueredTileHandlers) {
               handler(tile);
             }
-            return oldConquer(tile);
+            return oldConquer.call(p, tile);
           };
         });
       }
       const unitCapturedHandlers = this.otherHandlers?.players?.unitCaptured;
       if (unitCapturedHandlers && unitCapturedHandlers.length > 0) {
         gr.game.allPlayers().forEach((p) => {
-          const oldCapture = p.captureUnit.bind(p);
+          const oldCapture = p.captureUnit;
+          this.cleanupHandlers.push(() => {
+            p.captureUnit = oldCapture;
+          });
           p.captureUnit = (target: Unit) => {
             for (const handler of unitCapturedHandlers) {
               handler(target);
             }
-            return oldCapture(target);
+            return oldCapture.call(p, target);
           };
         });
       }
@@ -152,9 +170,14 @@ export class handleGameRunner {
     return false;
   }
   start() {
-    for (let i = 0; i < this.totalTurns; i++) {
-      const isDone = this.tick();
-      if (isDone) break;
+    try {
+      for (let i = 0; i < this.totalTurns; i++) {
+        if (this.tick()) break;
+      }
+    } finally {
+      for (const cleanup of this.cleanupHandlers) {
+        cleanup();
+      }
     }
   }
 }

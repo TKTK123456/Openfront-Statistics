@@ -18,6 +18,13 @@ export class heatmapCreator {
   public height: number;
   public map: MapData;
   public compact: boolean;
+  static defaultGradient: Gradient = [
+    { stop: 0, color: [10, 20, 90, 160] }, // dark blue
+    { stop: 0.3, color: [0, 0, 255, 188.5] }, // blue
+    { stop: 0.5, color: [0, 255, 255, 207.5] }, // cyan
+    { stop: 0.7, color: [0, 255, 0, 226.5] }, // lime
+    { stop: 1, color: [255, 0, 0, 255] }, // red
+  ];
   public gradient: Gradient = [
     { stop: 0, color: [10, 20, 90, 160] }, // dark blue
     { stop: 0.3, color: [0, 0, 255, 188.5] }, // blue
@@ -33,6 +40,8 @@ export class heatmapCreator {
     this.compact = compact;
     if (gradient) {
       this.gradient = gradient;
+    } else {
+      this.gradient = heatmapCreator.defaultGradient;
     }
   }
 

@@ -1,24 +1,24 @@
 import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import { fileURLToPath } from "url";
-import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { fetchGame } from "./util/util";
 import {
   gameRunnerHandlerConfig,
   handleGameRunner,
   OtherHandlers,
 } from "./GameRunnerHandler/gameRunnerHandler";
-import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
 import process from "process";
 import { parseArgs, ParseArgsOptionsConfig } from "util";
 import {
   GameUpdateViewData,
   ErrorUpdate,
 } from "../OpenFrontIO/src/core/game/GameUpdates";
+import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { TradeShipHandler } from "./handlers/tradeShip";
-import { tradeShipRoutes } from "./visualization/tradeShip";
 import { WarshipHandler } from "./handlers/warship";
 import { piratingHeatmap } from "./visualization/warship";
+import { tradeShipRoutes } from "./visualization/tradeShip";
+import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
 import { GameStartInfo, Turn } from "../OpenFrontIO/src/core/Schemas";
 const startTime = Date.now();
 const HANDLER_NAMES = ["tilesConquered", "tradeShipRoutes", "pirating", "all"];
@@ -101,7 +101,7 @@ class Handlers {
         allHandlers.tilesConquered.conqueredTile,
       );
       visualizations.push(async () => {
-        return await createTilesConquredHeatmap(
+        await createTilesConquredHeatmap(
           allHandlers.tilesConquered,
           this.gr,
           this.gameInfo,
@@ -126,7 +126,7 @@ class Handlers {
         allHandlers.tradeShip.tradeShipFinishHandler,
       );
       visualizations.push(async () => {
-        return await tradeShipRoutes(
+        await tradeShipRoutes(
           allHandlers.tradeShip,
           this.gr,
           this.gameInfo,
@@ -148,7 +148,7 @@ class Handlers {
         allHandlers.warships.capturedTradeShip,
       );
       visualizations.push(async () => {
-        return await piratingHeatmap(
+        await piratingHeatmap(
           allHandlers.warships,
           this.gr,
           this.gameInfo,
