@@ -51,6 +51,7 @@
         "uuid": "^11.1.0",
         "winston": "^3.17.0",
         "winston-transport": "^4.9.0",
+        "ws": "^8.21.1",
         "zod": "^4.0.0"
     },
     "devDependencies": {

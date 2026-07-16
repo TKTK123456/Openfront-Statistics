@@ -40,15 +40,20 @@
         margin-bottom: 30px;
       }
 
-      img {
+      img,
+      canvas {
         width: 100%;
         image-rendering: pixelated;
         border: 1px solid #444;
       }
 
-      video {
+      button {
+        margin-top: 10px;
+      }
+
+      progress {
         width: 100%;
-        border: 1px solid #444;
+        height: 20px;
       }
 
       code {
@@ -67,113 +72,178 @@
 
     <main>
       <div class="card">
-        <h2>Conquered Tiles Heatmap</h2>
+        <h2>Status</h2>
 
-        <% if (conqueredTilesHeatmap) { %>
-        <img src="data:image/png;base64,<%= conqueredTilesHeatmap %>" />
-        <% } else { %>
-        <p>No heatmap generated.</p>
-        <% } %>
+        <p id="status">Connecting...</p>
+
+        <progress id="progress" max="100" value="0"></progress>
+      </div>
+
+      <div class="card">
+        <h2>Conquered Tiles Heatmap</h2>
+        <img id="conquered" />
       </div>
 
       <div class="card">
         <h2>Trade Ship Routes Heatmap</h2>
-
-        <% if (tradeShipRoutesImageBuffer) { %>
-        <img src="data:image/png;base64,<%= tradeShipRoutesImageBuffer %>" />
-        <% } else { %>
-        <p>No heatmap generated.</p>
-        <% } %>
+        <img id="trade" />
       </div>
 
       <div class="card">
         <h2>Pirating Heatmap</h2>
-
-        <% if (piratingHeatmapBuffer) { %>
-        <img src="data:image/png;base64,<%= piratingHeatmapBuffer %>" />
-        <% } else { %>
-        <p>No heatmap generated.</p>
-        <% } %>
+        <img id="pirating" />
       </div>
 
       <div class="card">
         <h2>Timelapse</h2>
-        <script>
-          const borderFrames = JSON.stringify(borderFrames);
-          const conquestFrames = JSON.stringify(conquestFrames);
 
-          let currentFrame = 0;
+        <canvas id="map"></canvas>
 
-          const background = "data:image/png;base64" + background;
-
-          const canvas = document.getElementById("map");
-          const ctx = canvas.getContext("2d");
-
-          canvas.width = width;
-          canvas.height = height;
-
-          let frame = 0;
-
-          const bg = new Image();
-
-          bg.onload = () => {
-            drawFrame(0);
-          };
-
-          bg.src = background;
-
-          function drawFrame(index) {
-            frame = index;
-
-            ctx.drawImage(bg, 0, 0);
-
-            // Draw borders
-            ctx.fillStyle = "black";
-
-            for (const tile of borderFrames[index]) {
-              const x = tile % width;
-              const y = Math.floor(tile / width);
-
-              ctx.fillRect(x, y, 1, 1);
-            }
-
-            // Draw conquest heatmap
-            const conquest = conquestFrames[index];
-
-            for (const tile in conquest) {
-              const count = conquest[tile];
-
-              const x = tile % width;
-              const y = Math.floor(tile / width);
-
-              // replace this with your interpolateColor()
-              const intensity = Math.min(count / 100, 1);
-
-              ctx.fillStyle = `rgba(0,0,255,${intensity})`;
-
-              ctx.fillRect(x, y, 1, 1);
-            }
-
-            document.getElementById("frame").innerText =
-              `${index}/${borderFrames.length}`;
-          }
-
-          function nextFrame() {
-            if (frame < borderFrames.length - 1) drawFrame(frame + 1);
-          }
-
-          function previousFrame() {
-            if (frame > 0) drawFrame(frame - 1);
-          }
-        </script>
-        <div>
+        <div
+          style="
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          "
+        >
           <button onclick="previousFrame()">◀ Previous</button>
 
-          <span id="frame"> Frame 0 </span>
+          <input
+            id="frameSlider"
+            type="range"
+            min="0"
+            max="0"
+            value="0"
+            style="flex: 1"
+          />
 
           <button onclick="nextFrame()">Next ▶</button>
         </div>
       </div>
     </main>
+
+    <script>
+      const gameId = "<%= gameId %>";
+
+      const socket = new WebSocket(`ws://${location.host}/ws`);
+
+      const status = document.getElementById("status");
+      const progress = document.getElementById("progress");
+
+      const conquered = document.getElementById("conquered");
+      const trade = document.getElementById("trade");
+      const pirating = document.getElementById("pirating");
+
+      const canvas = document.getElementById("map");
+      const ctx = canvas.getContext("2d");
+
+      const frameSlider = document.getElementById("frameSlider");
+
+      let width = 0;
+      let height = 0;
+
+      let borderFrames = [];
+      let conquestFrames = [];
+
+      let frame = 0;
+
+      const bg = new Image();
+
+      socket.onopen = () => {
+        socket.send(
+          JSON.stringify({
+            type: "runGame",
+            gameId,
+          }),
+        );
+      };
+
+      socket.onmessage = ({ data }) => {
+        const msg = JSON.parse(data);
+
+        switch (msg.type) {
+          case "status":
+            status.textContent = msg.message;
+            break;
+
+          case "progress":
+            progress.value = msg.value;
+            break;
+
+          case "finished":
+            loadGame(msg.data);
+            break;
+
+          case "error":
+            status.textContent = msg.error;
+            console.error(msg.error);
+            break;
+          case "frame":
+            const bytes = Uint8ClampedArray.from(atob(msg.rgba), (c) =>
+              c.charCodeAt(0),
+            );
+
+            ctx.putImageData(new ImageData(bytes, width, height), 0, 0);
+            break;
+        }
+      };
+
+      function loadGame(data) {
+        status.textContent = "Finished!";
+        progress.value = 100;
+
+        width = data.width;
+        height = data.height;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        borderFrames = data.borderFrames;
+        conquestFrames = data.conquestFrames;
+
+        // Configure slider
+        frameSlider.max = borderFrames.length - 1;
+        frameSlider.value = 0;
+
+        conquered.src = "data:image/png;base64," + data.conqueredTilesHeatmap;
+        trade.src = "data:image/png;base64," + data.tradeShipRoutesHeatmap;
+        pirating.src = "data:image/png;base64," + data.piratingHeatmap;
+
+        bg.onload = () => drawFrame(0);
+        bg.src = "data:image/png;base64," + data.background;
+      }
+
+      function drawFrame(index) {
+        socket.send(
+          JSON.stringify({
+            type: "frame",
+            gameId,
+            frame: index,
+          }),
+        );
+      }
+
+      function nextFrame() {
+        if (frame < borderFrames.length - 1) {
+          frame++;
+          frameSlider.value = frame;
+          drawFrame(frame);
+        }
+      }
+
+      function previousFrame() {
+        if (frame > 0) {
+          frame--;
+          frameSlider.value = frame;
+          drawFrame(frame);
+        }
+      }
+
+      frameSlider.addEventListener("input", () => {
+        frame = Number(frameSlider.value);
+        drawFrame(frame);
+      });
+    </script>
   </body>
 </html>
