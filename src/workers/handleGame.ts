@@ -45,7 +45,8 @@ parentPort.on("message", async (gameID: string) => {
       output.borderFrames === undefined ||
       output.conquestFrames === undefined ||
       tradeShipRoutesOutput === undefined ||
-      pirating === undefined
+      pirating === undefined ||
+      output.ownerFrames === undefined
     ) {
       throw new Error("Missing heatmap output");
     }
@@ -61,6 +62,7 @@ parentPort.on("message", async (gameID: string) => {
         Object.fromEntries(frame),
       ),
       background: output.background,
+      ownerFrames: output.ownerFrames,
       tradeShipRoutesOutput,
       pirating,
     });

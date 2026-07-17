@@ -78,7 +78,9 @@ wss.on("connection", (ws) => {
 
         if (output === undefined) {
           output = await runGameHanlderWorker(gameId);
-          games.set(gameId, { gameHandlerResult: output });
+          games.set(gameId, {
+            gameHandlerResult: output,
+          });
         }
         const imgConfig = {
           width: output.width,
@@ -116,17 +118,23 @@ wss.on("connection", (ws) => {
 
         if (game !== undefined) {
           const data = game.gameHandlerResult;
-          const { background, borderFrames, conquestFrames, width, height } =
-            data;
-
+          const {
+            background,
+            borderFrames,
+            conquestFrames,
+            width,
+            height,
+            ownerFrames,
+          } = data;
           const gradient = heatmapCreator.defaultGradient;
 
           const border = borderFrames[frameIndex];
+          const owner = ownerFrames[frameIndex];
           const conquest: Map<string, number> = new Map(
             Object.entries(conquestFrames[frameIndex]) as [string, number][],
           );
 
-          if (!border || !conquest || background === undefined) {
+          if (!border || !conquest || !owner || background === undefined) {
             ws.send(
               JSON.stringify({
                 type: "error",
@@ -142,7 +150,6 @@ wss.on("connection", (ws) => {
           // Draw borders
           for (let i = 0; i < border.length; i++) {
             const idx = border[i] * 4;
-
             base[idx] = 0;
             base[idx + 1] = 0;
             base[idx + 2] = 0;

@@ -11,6 +11,7 @@ export interface GameHanlderWorkerResult {
   background: Uint8ClampedArray<ArrayBufferLike> | undefined;
   tradeShipRoutesOutput: Uint8ClampedArray<ArrayBufferLike>;
   pirating: Uint8ClampedArray<ArrayBufferLike>;
+  ownerFrames: string[][];
 }
 
 export function runGameHanlderWorker(

@@ -16,6 +16,7 @@ interface HeatmapOutput {
   conquestFrames?: Map<number, number>[];
   background?: Uint8ClampedArray;
   gradient?: Gradient;
+  ownerFrames?: string[][];
 }
 export async function createTilesConquredHeatmap(
   tileConqueredHandler: TileConqueredHandler,
@@ -120,6 +121,7 @@ export async function createTilesConquredHeatmap(
       output.gradient = heatmapMaker.gradient;
       output.borderFrames = borderFrames;
       output.conquestFrames = conquestFrames;
+      output.ownerFrames = tileConqueredHandler.borderOwner;
     }
   }
   if (!options.createFiles) return output;
