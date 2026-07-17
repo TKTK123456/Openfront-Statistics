@@ -37,16 +37,6 @@ function createImageBuffer(
 }
 interface Game {
   gameHandlerResult: GameHanlderWorkerResult;
-  frames: Map<
-    number,
-    {
-      type: string;
-      frame: number;
-      width: number;
-      height: number;
-      rgba: string;
-    }
-  >;
 }
 const games: Map<string, Game> = new Map();
 
@@ -81,7 +71,7 @@ wss.on("connection", (ws) => {
 
         if (output === undefined) {
           output = await runGameHanlderWorker(gameId);
-          games.set(gameId, { gameHandlerResult: output, frames: new Map() });
+          games.set(gameId, { gameHandlerResult: output });
         }
         const imgConfig = {
           width: output.width,
@@ -125,8 +115,6 @@ wss.on("connection", (ws) => {
         const game = games.get(gameId);
 
         if (game !== undefined) {
-          let frame = game.frames.get(frameIndex);
-          if (frame !== undefined) ws.send(JSON.stringify(frame));
           const data = game.gameHandlerResult;
           const { background, borderFrames, conquestFrames, width, height } =
             data;
@@ -161,7 +149,6 @@ wss.on("connection", (ws) => {
             base[idx + 3] = 255;
           }
 
-          new Map(conquest);
           const tiles = new Int32Array(conquest.size);
           const counts = new Float64Array(conquest.size);
 
@@ -183,14 +170,13 @@ wss.on("connection", (ws) => {
             base,
             gradient,
           );
-          frame = {
+          const frame = {
             type: "frame",
             frame: frameIndex,
             width,
             height,
             rgba: Buffer.from(rgba.buffer).toString("base64"),
           };
-          game.frames.set(frameIndex, frame);
           ws.send(JSON.stringify(frame));
         }
       }

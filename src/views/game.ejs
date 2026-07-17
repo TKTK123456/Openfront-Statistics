@@ -125,7 +125,7 @@
 
     <script>
       const gameId = "<%= gameId %>";
-
+      const frameCache = new Map();
       const socket = new WebSocket(`ws://${location.host}/ws`);
 
       const status = document.getElementById("status");
@@ -139,6 +139,8 @@
       const ctx = canvas.getContext("2d");
 
       const frameSlider = document.getElementById("frameSlider");
+      
+const inProgressFrames = new Set();
 
       let width = 0;
       let height = 0;
@@ -183,8 +185,9 @@
             const bytes = Uint8ClampedArray.from(atob(msg.rgba), (c) =>
               c.charCodeAt(0),
             );
-
-            ctx.putImageData(new ImageData(bytes, width, height), 0, 0);
+            frameCache.set(msg.frame, new ImageData(bytes, width, height));
+            inProgressFrames.delete(msg.frame);
+            ctx.putImageData(frameCache.get(msg.frame), 0, 0);
             break;
         }
       };
@@ -215,6 +218,12 @@
       }
 
       function drawFrame(index) {
+        if (frameCache.has(index)) {
+          ctx.putImageData(frameCache.get(index), 0, 0);
+          return;
+        }
+        if (inProgressFrames.has(index)) return;
+        inProgressFrames.add(index)
         socket.send(
           JSON.stringify({
             type: "frame",
