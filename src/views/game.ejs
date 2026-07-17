@@ -122,7 +122,6 @@
 
           <button onclick="nextFrame()">Next ▶</button>
           <br />
-          <button onclick="fetchAllFrames()">Fetch all frames</button>
         </div>
       </div>
     </main>
@@ -179,6 +178,11 @@
 
             if (!frameCache.has(frameIndex)) {
               loadedFrames++;
+              if (loadedFrames < totalFrames) {
+                status.textContent = `Loading frames... ${loadedFrames}/${totalFrames}`;
+              } else {
+                status.textContent = `Done loading ${totalFrames} frames`;
+              }
             }
 
             frameCache.set(frameIndex, image);
@@ -209,7 +213,6 @@
                 break;
               case 3:
                 bg.src = url;
-                drawFrame(0);
                 break;
             }
           }
@@ -231,6 +234,7 @@
 
           case "finished":
             loadGame(msg.data);
+            drawFrame(0)
             fetchAllFrames();
             break;
 
@@ -274,15 +278,6 @@
         if (frameCache.has(index)) {
           ctx.putImageData(frameCache.get(index), 0, 0);
         } else if (!inProgressFrames.has(index)) fetchFrame(index);
-
-        // Always prefetch ahead
-        for (
-          let i = index + 1;
-          i <= Math.min(index + 10, totalFrames - 1);
-          i++
-        ) {
-          fetchFrame(i);
-        }
       }
 
       function nextFrame() {
@@ -302,6 +297,7 @@
       }
 
       function fetchAllFrames() {
+        status.textContent = "Fetching all frames"
         for (let i = 0; i < totalFrames; i++) {
           fetchFrame(i);
         }
@@ -311,7 +307,6 @@
 
       function playVideo() {
         if (loadedFrames < totalFrames) {
-          status.textContent = `Loading frames... ${loadedFrames}/${totalFrames}`;
           return;
         }
 
