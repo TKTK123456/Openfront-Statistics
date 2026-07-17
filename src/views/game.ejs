@@ -127,7 +127,7 @@
       const gameId = "<%= gameId %>";
       const frameCache = new Map();
       const socket = new WebSocket(`ws://${location.host}/ws`);
-
+      socket.binaryType = "arraybuffer";
       const status = document.getElementById("status");
       const progress = document.getElementById("progress");
 
@@ -145,9 +145,6 @@
       let width = 0;
       let height = 0;
 
-      let borderFrames = [];
-      let conquestFrames = [];
-
       let frame = 0;
 
       const bg = new Image();
@@ -162,6 +159,57 @@
       };
 
       socket.onmessage = ({ data }) => {
+        // Binary frame
+        if (data instanceof ArrayBuffer) {
+          const bytes = new Uint8Array(data);
+
+          const type = bytes[0];
+          if (type === 4) {
+            const view = new DataView(data);
+
+            const frameIndex = view.getUint32(1, true);
+
+            const pixels = new Uint8ClampedArray(data, 5);
+
+            const image = new ImageData(pixels, width, height);
+
+            frameCache.set(frameIndex, image);
+
+            inProgressFrames.delete(frameIndex);
+
+            if (frame === frameIndex) {
+              ctx.putImageData(image, 0, 0);
+            }
+          } else {
+            const imageBytes = bytes.slice(1);
+
+            const blob = new Blob([imageBytes], {
+              type: "image/png",
+            });
+
+            const url = URL.createObjectURL(blob);
+
+            switch (type) {
+              case 0:
+                conquered.src = url;
+                break;
+              case 1:
+                trade.src = url;
+                break;
+              case 2:
+                pirating.src = url;
+                break;
+              case 3:
+                bg.src = url;
+                drawFrame(0);
+                break;
+            }
+          }
+
+          return;
+        }
+
+        // JSON messages
         const msg = JSON.parse(data);
 
         switch (msg.type) {
@@ -181,15 +229,6 @@
             status.textContent = msg.error;
             console.error(msg.error);
             break;
-          case "frame":
-            const bytes = Uint8ClampedArray.from(atob(msg.rgba), (c) =>
-              c.charCodeAt(0),
-            );
-            frameCache.set(msg.frame, new ImageData(bytes, width, height));
-            inProgressFrames.delete(msg.frame);
-            if (frame !== msg.frame) break;
-            ctx.putImageData(frameCache.get(msg.frame), 0, 0);
-            break;
         }
       };
 
@@ -203,20 +242,9 @@
         canvas.width = width;
         canvas.height = height;
 
-        borderFrames = data.borderFrames;
-        conquestFrames = data.conquestFrames;
-
         // Configure slider
-        frameSlider.max = borderFrames.length - 1;
+        frameSlider.max = data.frameCount - 1;
         frameSlider.value = 0;
-
-        conquered.src = "data:image/png;base64," + data.conqueredTilesHeatmap;
-        trade.src = "data:image/png;base64," + data.tradeShipRoutesHeatmap;
-        pirating.src = "data:image/png;base64," + data.piratingHeatmap;
-
-        bg.src = "data:image/png;base64," + data.background;
-        bg.onload = () => drawFrame(0);
-        drawFrame(0);
       }
       function drawFrame(index) {
         if (frameCache.has(index)) {
@@ -235,7 +263,7 @@
         // Always prefetch ahead
         for (
           let i = index + 1;
-          i <= Math.min(index + 10, borderFrames.length - 1);
+          i <= Math.min(index + 10, frameSlider.max - 1);
           i++
         ) {
           if (!frameCache.has(i) && !inProgressFrames.has(i)) {
@@ -252,7 +280,7 @@
       }
 
       function nextFrame() {
-        if (frame < borderFrames.length - 1) {
+        if (frame < frameSlider.max - 1) {
           frame++;
           frameSlider.value = frame;
           drawFrame(frame);

@@ -52,7 +52,14 @@ const wss = new WebSocketServer({
   server,
   path: "/ws",
 });
+function sendImage(ws: any, type: number, data: Buffer) {
+  const packet = Buffer.allocUnsafe(1 + data.length);
 
+  packet.writeUInt8(type, 0);
+  data.copy(packet, 1);
+
+  ws.send(packet, { binary: true });
+}
 wss.on("connection", (ws) => {
   ws.on("message", async (message) => {
     try {
@@ -85,30 +92,23 @@ wss.on("connection", (ws) => {
               width: output.width,
               height: output.height,
 
-              conqueredTilesHeatmap: createImageBuffer(
-                imgConfig,
-                output.fullGame,
-              ).toString("base64"),
-
-              tradeShipRoutesHeatmap: createImageBuffer(
-                imgConfig,
-                output.tradeShipRoutesOutput,
-              ).toString("base64"),
-
-              piratingHeatmap: createImageBuffer(
-                imgConfig,
-                output.pirating,
-              ).toString("base64"),
-
-              background: Buffer.from(output.background!).toString("base64"),
-
               gradient: heatmapCreator.defaultGradient,
 
-              borderFrames: output.borderFrames,
-              conquestFrames: output.conquestFrames,
+              frameCount: output.borderFrames.length,
             },
           }),
         );
+        sendImage(ws, 0, createImageBuffer(imgConfig, output.fullGame));
+
+        sendImage(
+          ws,
+          1,
+          createImageBuffer(imgConfig, output.tradeShipRoutesOutput),
+        );
+
+        sendImage(ws, 2, createImageBuffer(imgConfig, output.pirating));
+
+        sendImage(ws, 3, Buffer.from(output.background!));
       } else if (msg.type === "frame") {
         const gameId = msg.gameId as string;
         const frameIndex = msg.frame as number;
@@ -170,14 +170,20 @@ wss.on("connection", (ws) => {
             base,
             gradient,
           );
-          const frame = {
-            type: "frame",
-            frame: frameIndex,
-            width,
-            height,
-            rgba: Buffer.from(rgba.buffer).toString("base64"),
-          };
-          ws.send(JSON.stringify(frame));
+          const pixelBuffer = Buffer.from(
+            rgba.buffer,
+            rgba.byteOffset,
+            rgba.byteLength,
+          );
+
+          const packet = Buffer.allocUnsafe(4 + pixelBuffer.length);
+
+          // Store frame number
+          packet.writeUInt32LE(frameIndex, 0);
+
+          // Store RGBA bytes
+          pixelBuffer.copy(packet, 4);
+          sendImage(ws, 4, packet);
         }
       }
     } catch (err) {
