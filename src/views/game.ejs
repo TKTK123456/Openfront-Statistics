@@ -139,8 +139,8 @@
       const ctx = canvas.getContext("2d");
 
       const frameSlider = document.getElementById("frameSlider");
-      
-const inProgressFrames = new Set();
+
+      const inProgressFrames = new Set();
 
       let width = 0;
       let height = 0;
@@ -187,6 +187,7 @@ const inProgressFrames = new Set();
             );
             frameCache.set(msg.frame, new ImageData(bytes, width, height));
             inProgressFrames.delete(msg.frame);
+            if (frame !== msg.frame) break;
             ctx.putImageData(frameCache.get(msg.frame), 0, 0);
             break;
         }
@@ -216,21 +217,37 @@ const inProgressFrames = new Set();
         bg.onload = () => drawFrame(0);
         bg.src = "data:image/png;base64," + data.background;
       }
-
       function drawFrame(index) {
         if (frameCache.has(index)) {
           ctx.putImageData(frameCache.get(index), 0, 0);
-          return;
+        } else if (!inProgressFrames.has(index)) {
+          inProgressFrames.add(index);
+          socket.send(
+            JSON.stringify({
+              type: "frame",
+              gameId,
+              frame: index,
+            }),
+          );
         }
-        if (inProgressFrames.has(index)) return;
-        inProgressFrames.add(index)
-        socket.send(
-          JSON.stringify({
-            type: "frame",
-            gameId,
-            frame: index,
-          }),
-        );
+
+        // Always prefetch ahead
+        for (
+          let i = index + 1;
+          i <= Math.min(index + 10, borderFrames.length - 1);
+          i++
+        ) {
+          if (!frameCache.has(i) && !inProgressFrames.has(i)) {
+            inProgressFrames.add(i);
+            socket.send(
+              JSON.stringify({
+                type: "frame",
+                gameId,
+                frame: i,
+              }),
+            );
+          }
+        }
       }
 
       function nextFrame() {
