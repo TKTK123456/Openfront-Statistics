@@ -214,8 +214,9 @@
         trade.src = "data:image/png;base64," + data.tradeShipRoutesHeatmap;
         pirating.src = "data:image/png;base64," + data.piratingHeatmap;
 
-        bg.onload = () => drawFrame(0);
         bg.src = "data:image/png;base64," + data.background;
+        bg.onload = () => drawFrame(0);
+        drawFrame(0);
       }
       function drawFrame(index) {
         if (frameCache.has(index)) {
