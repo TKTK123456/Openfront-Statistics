@@ -107,6 +107,8 @@
             gap: 10px;
           "
         >
+          <button onclick="playVideo()">Play</button>
+          <button onclick="stopVideo()">Pause</button>
           <button onclick="previousFrame()">◀ Previous</button>
 
           <input
@@ -119,6 +121,8 @@
           />
 
           <button onclick="nextFrame()">Next ▶</button>
+          <br />
+          <button onclick="fetchAllFrames()">Fetch all frames</button>
         </div>
       </div>
     </main>
@@ -173,6 +177,10 @@
 
             const image = new ImageData(pixels, width, height);
 
+            if (!frameCache.has(frameIndex)) {
+              loadedFrames++;
+            }
+
             frameCache.set(frameIndex, image);
 
             inProgressFrames.delete(frameIndex);
@@ -223,6 +231,7 @@
 
           case "finished":
             loadGame(msg.data);
+            fetchAllFrames();
             break;
 
           case "error":
@@ -231,7 +240,8 @@
             break;
         }
       };
-
+      let totalFrames = 0;
+      let loadedFrames = 0;
       function loadGame(data) {
         status.textContent = "Finished!";
         progress.value = 100;
@@ -242,14 +252,13 @@
         canvas.width = width;
         canvas.height = height;
 
-        // Configure slider
-        frameSlider.max = data.frameCount - 1;
+        totalFrames = data.frameCount;
+        frameSlider.max = totalFrames - 1;
         frameSlider.value = 0;
       }
-      function drawFrame(index) {
-        if (frameCache.has(index)) {
-          ctx.putImageData(frameCache.get(index), 0, 0);
-        } else if (!inProgressFrames.has(index)) {
+
+      function fetchFrame(index) {
+        if (!frameCache.has(index) && !inProgressFrames.has(index)) {
           inProgressFrames.add(index);
           socket.send(
             JSON.stringify({
@@ -259,28 +268,25 @@
             }),
           );
         }
+      }
+
+      function drawFrame(index) {
+        if (frameCache.has(index)) {
+          ctx.putImageData(frameCache.get(index), 0, 0);
+        } else if (!inProgressFrames.has(index)) fetchFrame(index);
 
         // Always prefetch ahead
         for (
           let i = index + 1;
-          i <= Math.min(index + 10, frameSlider.max - 1);
+          i <= Math.min(index + 10, totalFrames - 1);
           i++
         ) {
-          if (!frameCache.has(i) && !inProgressFrames.has(i)) {
-            inProgressFrames.add(i);
-            socket.send(
-              JSON.stringify({
-                type: "frame",
-                gameId,
-                frame: i,
-              }),
-            );
-          }
+          fetchFrame(i);
         }
       }
 
       function nextFrame() {
-        if (frame < frameSlider.max - 1) {
+        if (frame < totalFrames - 1) {
           frame++;
           frameSlider.value = frame;
           drawFrame(frame);
@@ -295,6 +301,48 @@
         }
       }
 
+      function fetchAllFrames() {
+        for (let i = 0; i < totalFrames; i++) {
+          fetchFrame(i);
+        }
+      }
+      let isPlaying = false;
+      let lastFrameTime = 0;
+
+      function playVideo() {
+        if (loadedFrames < totalFrames) {
+          status.textContent = `Loading frames... ${loadedFrames}/${totalFrames}`;
+          return;
+        }
+
+        if (isPlaying) return;
+
+        isPlaying = true;
+        requestAnimationFrame(playLoop);
+      }
+
+      function playLoop(time) {
+        if (!isPlaying) return;
+
+        if (time - lastFrameTime >= 1000 / 30) {
+          if (frame >= totalFrames - 1) {
+            stopVideo();
+            return;
+          }
+
+          frame++;
+          frameSlider.value = frame;
+          drawFrame(frame);
+
+          lastFrameTime = time;
+        }
+
+        requestAnimationFrame(playLoop);
+      }
+
+      function stopVideo() {
+        isPlaying = false;
+      }
       frameSlider.addEventListener("input", () => {
         frame = Number(frameSlider.value);
         drawFrame(frame);
