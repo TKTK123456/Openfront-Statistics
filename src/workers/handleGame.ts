@@ -2,7 +2,7 @@ import { simGame } from "src/server/simGame";
 import { createTilesConquredHeatmap } from "src/visualization/tilesConqured";
 import { tradeShipRoutes } from "src/visualization/tradeShip";
 import { piratingHeatmap } from "src/visualization/warship";
-import { parentPort } from "worker_threads";
+import { parentPort, Transferable } from "worker_threads";
 
 if (!parentPort) {
   throw new Error("Worker has no parentPort");
@@ -10,7 +10,10 @@ if (!parentPort) {
 
 parentPort.on("message", async (gameID: string) => {
   try {
-    const handlers = await simGame(gameID);
+    const sendProgress = (value: number) => {
+      parentPort?.postMessage({ type: "progress", value });
+    };
+    const handlers = await simGame(gameID, sendProgress);
 
     const output = await createTilesConquredHeatmap(
       handlers.tileConqueredHandler,
@@ -41,33 +44,41 @@ parentPort.on("message", async (gameID: string) => {
       { createFile: false, newHeatmapCreator: true },
     );
     if (
-      output?.fullGame === undefined ||
+      output === undefined ||
+      output.fullGame === undefined ||
       output.borderFrames === undefined ||
       output.conquestFrames === undefined ||
       tradeShipRoutesOutput === undefined ||
       pirating === undefined ||
-      output.ownerFrames === undefined
+      output.background === undefined
     ) {
       throw new Error("Missing heatmap output");
     }
-    parentPort!.postMessage({
-      width: handlers.gr.game.width(),
-      height: handlers.gr.game.height(),
+    console.log("Got to here");
+    parentPort!.postMessage(
+      {
+        type: "finish",
+        width: handlers.gr.game.width(),
+        height: handlers.gr.game.height(),
 
-      fullGame: output.fullGame,
+        borderFrames: output.borderFrames,
 
-      borderFrames: output.borderFrames,
-
-      conquestFrames: output.conquestFrames.map((frame) =>
-        Object.fromEntries(frame),
-      ),
-      background: output.background,
-      ownerFrames: output.ownerFrames,
-      tradeShipRoutesOutput,
-      pirating,
-    });
+        conquestFrames: output.conquestFrames,
+        background: output.background.buffer,
+        fullGame: output.fullGame.buffer,
+        tradeShipRoutesOutput: tradeShipRoutesOutput.buffer,
+        pirating: pirating.buffer,
+      },
+      [
+        output.fullGame.buffer as Transferable,
+        output.background.buffer as Transferable,
+        tradeShipRoutesOutput.buffer as Transferable,
+        pirating.buffer as Transferable,
+      ],
+    );
   } catch (err) {
     parentPort!.postMessage({
+      type: "error",
       error: err instanceof Error ? err.message : String(err),
     });
   }

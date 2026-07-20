@@ -10,11 +10,11 @@ import { TradeShipHandler } from "../handlers/tradeShip";
 import { WarshipHandler } from "../handlers/warship";
 
 import { GameRunner } from "../../OpenFrontIO/src/core/GameRunner";
-import { heatmapCreator } from "src/visualization/heatmap";
-import { GameMapSize } from "../../OpenFrontIO/src/core/game/Game";
-import path from "path";
-import { fileURLToPath } from "url";
-export async function simGame(gameID: string) {
+
+export async function simGame(
+  gameID: string,
+  sendProgress?: (value: number) => void,
+) {
   const GRHC: gameRunnerHandlerConfig = { turnInterval: 17 };
   const gameInfo = await fetchGame(gameID);
   if (gameInfo[0] === undefined)
@@ -46,10 +46,13 @@ export async function simGame(gameID: string) {
       tradeShipFinish: [handlers.tradeShipHandler.tradeShipFinishHandler],
     },
   };
-  gameRunnerHandler.setHandlers(
-    [handlers.tileConqueredHandler.tickHandler],
-    otherHandlers,
-  );
+  const tickHandlers = [handlers.tileConqueredHandler.tickHandler];
+  if (sendProgress !== undefined) {
+    tickHandlers.push((g, turnNum: number) => {
+      sendProgress((turnNum / totalTurns) * 100);
+    });
+  }
+  gameRunnerHandler.setHandlers(tickHandlers, otherHandlers);
   gameRunnerHandler.start();
   return {
     gr,

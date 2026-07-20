@@ -7,11 +7,11 @@ import { fileURLToPath } from "url";
 import { PNG } from "pngjs";
 import { WebSocketServer } from "ws";
 
-import {
-  GameHanlderWorkerResult,
-  runGameHanlderWorker,
-} from "./runHandleGames";
+import { GameHanlderWorkerResult, runGame } from "./runGame";
 import { createHeatmap, heatmapCreator } from "src/visualization/heatmap";
+import { WebSocket } from "ws";
+import { sendImage } from "src/util/util";
+import { createCombinedTimelapse } from "src/visualization/timelapse";
 
 const app = express();
 const server = http.createServer(app);
@@ -35,9 +35,12 @@ function createImageBuffer(
   img.data.set(data);
   return PNG.sync.write(img);
 }
-interface Game {
+export interface Game {
   gameHandlerResult: GameHanlderWorkerResult;
 }
+
+//Connect to a DB so that node doesn't run out of memory or whatever
+
 const games: Map<string, Game> = new Map();
 
 // Serve the page immediately.
@@ -52,14 +55,47 @@ const wss = new WebSocketServer({
   server,
   path: "/ws",
 });
-function sendImage(ws: any, type: number, data: Buffer) {
-  const packet = Buffer.allocUnsafe(1 + data.length);
 
-  packet.writeUInt8(type, 0);
-  data.copy(packet, 1);
+export async function gameProcessor(
+  game: GameHanlderWorkerResult,
+  ws: WebSocket,
+) {
+  const imgConfig = {
+    width: game.width,
+    height: game.height,
+  };
 
-  ws.send(packet, { binary: true });
+  ws.send(
+    JSON.stringify({
+      type: "finished",
+      data: {
+        width: game.width,
+        height: game.height,
+
+        gradient: heatmapCreator.defaultGradient,
+
+        frameCount: game.borderFrames.length,
+      },
+    }),
+  );
+  sendImage(ws, 0, createImageBuffer(imgConfig, game.fullGame));
+
+  sendImage(ws, 1, createImageBuffer(imgConfig, game.tradeShipRoutesOutput));
+
+  sendImage(ws, 2, createImageBuffer(imgConfig, game.pirating));
+
+  if (game.background !== undefined)
+    await createCombinedTimelapse({
+      out: ws,
+      width: game.width,
+      height: game.height,
+      background: game.background,
+      gradient: heatmapCreator.defaultGradient,
+      borderFrames: game.borderFrames,
+      conquestFrames: game.conquestFrames,
+    });
 }
+
 wss.on("connection", (ws) => {
   ws.on("message", async (message) => {
     try {
@@ -77,64 +113,28 @@ wss.on("connection", (ws) => {
         let output = games.get(gameId)?.gameHandlerResult;
 
         if (output === undefined) {
-          output = await runGameHanlderWorker(gameId);
+          output = await runGame(gameId, { ws, cache: games });
           games.set(gameId, {
             gameHandlerResult: output,
           });
         }
-        const imgConfig = {
-          width: output.width,
-          height: output.height,
-        };
-
-        ws.send(
-          JSON.stringify({
-            type: "finished",
-            data: {
-              width: output.width,
-              height: output.height,
-
-              gradient: heatmapCreator.defaultGradient,
-
-              frameCount: output.borderFrames.length,
-            },
-          }),
-        );
-        sendImage(ws, 0, createImageBuffer(imgConfig, output.fullGame));
-
-        sendImage(
-          ws,
-          1,
-          createImageBuffer(imgConfig, output.tradeShipRoutesOutput),
-        );
-
-        sendImage(ws, 2, createImageBuffer(imgConfig, output.pirating));
-
-        sendImage(ws, 3, Buffer.from(output.background!));
-      } else if (msg.type === "frame") {
+        await gameProcessor(output, ws);
+      } else if (msg.type === "frame" && false) {
+        //this is so that if what I am trying doesn't work I can revert it
         const gameId = msg.gameId as string;
         const frameIndex = msg.frame as number;
         const game = games.get(gameId);
 
         if (game !== undefined) {
           const data = game.gameHandlerResult;
-          const {
-            background,
-            borderFrames,
-            conquestFrames,
-            width,
-            height,
-            ownerFrames,
-          } = data;
+          const { background, borderFrames, conquestFrames, width, height } =
+            data;
           const gradient = heatmapCreator.defaultGradient;
 
           const border = borderFrames[frameIndex];
-          const owner = ownerFrames[frameIndex];
-          const conquest: Map<string, number> = new Map(
-            Object.entries(conquestFrames[frameIndex]) as [string, number][],
-          );
+          const conquest: Map<number, number> = conquestFrames[frameIndex];
 
-          if (!border || !conquest || !owner || background === undefined) {
+          if (!border || !conquest || background === undefined) {
             ws.send(
               JSON.stringify({
                 type: "error",
@@ -161,7 +161,7 @@ wss.on("connection", (ws) => {
 
           let i = 0;
           for (const [tile, count] of conquest) {
-            tiles[i] = parseInt(tile);
+            tiles[i] = tile;
             counts[i] = count;
             i++;
           }
@@ -190,7 +190,7 @@ wss.on("connection", (ws) => {
 
           // Store RGBA bytes
           pixelBuffer.copy(packet, 4);
-          sendImage(ws, 4, packet);
+          sendImage(ws, 3, packet);
         }
       }
     } catch (err) {

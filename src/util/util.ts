@@ -13,6 +13,7 @@ import {
 } from "../../OpenFrontIO/src/core/Schemas";
 import { decompressGameRecord } from "../../OpenFrontIO/src/core/Util";
 import { fileURLToPath } from "url";
+import { WebSocket } from "ws";
 
 export class gameMapLoader implements GameMapLoader {
   constructor(private mapsDir: string) {}
@@ -54,3 +55,12 @@ export const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../OpenFrontIO",
 );
+
+export function sendImage(ws: WebSocket, type: number, data: Buffer) {
+  const packet = Buffer.allocUnsafe(1 + data.length);
+
+  packet.writeUInt8(type, 0);
+  data.copy(packet, 1);
+
+  ws.send(packet, { binary: true });
+}

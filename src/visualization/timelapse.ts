@@ -1,12 +1,13 @@
 import { VideoEncoder } from "./encode";
 import { Gradient } from "./heatmap";
 import { renderFramesToVideo } from "../util/renderPool";
+import { WebSocket } from "ws";
 
 // One combined timelapse: terrain + black country outlines under a
 // count-weighted conquest heatmap. Frames are rendered across a worker pool
 // and streamed to the encoder in order.
 export async function createCombinedTimelapse(opts: {
-  outPath: string;
+  out: string | WebSocket;
   width: number;
   height: number;
   background: Uint8ClampedArray;
@@ -14,14 +15,19 @@ export async function createCombinedTimelapse(opts: {
   borderFrames: Int32Array[];
   conquestFrames: Map<number, number>[];
 }) {
-  const { outPath, width, height, background, gradient } = opts;
+  const { out, width, height, background, gradient } = opts;
   const frameCount = Math.min(
     opts.borderFrames.length,
     opts.conquestFrames.length,
   );
 
-  const encoder = new VideoEncoder(outPath, width, height, 30);
-  await encoder.open();
+  let encoder: VideoEncoder | WebSocket;
+  if (out instanceof WebSocket) {
+    encoder = out;
+  } else {
+    encoder = new VideoEncoder(out, width, height, 30);
+    await encoder.open();
+  }
 
   await renderFramesToVideo({
     workerUrl: new URL("../workers/timelapseWorker.ts", import.meta.url),
@@ -44,9 +50,9 @@ export async function createCombinedTimelapse(opts: {
         counts[k] = count;
         k++;
       }
-      const borderBuffer = border.buffer as ArrayBuffer;
-      const tilesBuffer = tiles.buffer as ArrayBuffer;
-      const countsBuffer = counts.buffer as ArrayBuffer;
+      const borderBuffer = border.slice().buffer as ArrayBuffer;
+      const tilesBuffer = tiles.slice().buffer as ArrayBuffer;
+      const countsBuffer = counts.slice().buffer as ArrayBuffer;
 
       return {
         message: {

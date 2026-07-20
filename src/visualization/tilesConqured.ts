@@ -108,7 +108,7 @@ export async function createTilesConquredHeatmap(
       const outPath: string = fileNames.video;
 
       await createCombinedTimelapse({
-        outPath,
+        out: outPath,
         width: gr.game.width(),
         height: gr.game.height(),
         background,
@@ -121,7 +121,6 @@ export async function createTilesConquredHeatmap(
       output.gradient = heatmapMaker.gradient;
       output.borderFrames = borderFrames;
       output.conquestFrames = conquestFrames;
-      output.ownerFrames = tileConqueredHandler.borderOwner;
     }
   }
   if (!options.createFiles) return output;

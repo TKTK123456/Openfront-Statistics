@@ -143,14 +143,10 @@
 
       const frameSlider = document.getElementById("frameSlider");
 
-      const inProgressFrames = new Set();
-
       let width = 0;
       let height = 0;
 
       let frame = 0;
-
-      const bg = new Image();
 
       socket.onopen = () => {
         socket.send(
@@ -167,7 +163,7 @@
           const bytes = new Uint8Array(data);
 
           const type = bytes[0];
-          if (type === 4) {
+          if (type === 3) {
             const view = new DataView(data);
 
             const frameIndex = view.getUint32(1, true);
@@ -186,8 +182,6 @@
             }
 
             frameCache.set(frameIndex, image);
-
-            inProgressFrames.delete(frameIndex);
 
             if (frame === frameIndex) {
               ctx.putImageData(image, 0, 0);
@@ -211,9 +205,6 @@
               case 2:
                 pirating.src = url;
                 break;
-              case 3:
-                bg.src = url;
-                break;
             }
           }
 
@@ -234,8 +225,7 @@
 
           case "finished":
             loadGame(msg.data);
-            drawFrame(0)
-            fetchAllFrames();
+            drawFrame(0);
             break;
 
           case "error":
@@ -261,23 +251,10 @@
         frameSlider.value = 0;
       }
 
-      function fetchFrame(index) {
-        if (!frameCache.has(index) && !inProgressFrames.has(index)) {
-          inProgressFrames.add(index);
-          socket.send(
-            JSON.stringify({
-              type: "frame",
-              gameId,
-              frame: index,
-            }),
-          );
-        }
-      }
-
       function drawFrame(index) {
         if (frameCache.has(index)) {
           ctx.putImageData(frameCache.get(index), 0, 0);
-        } else if (!inProgressFrames.has(index)) fetchFrame(index);
+        }
       }
 
       function nextFrame() {
@@ -293,13 +270,6 @@
           frame--;
           frameSlider.value = frame;
           drawFrame(frame);
-        }
-      }
-
-      function fetchAllFrames() {
-        status.textContent = "Fetching all frames"
-        for (let i = 0; i < totalFrames; i++) {
-          fetchFrame(i);
         }
       }
       let isPlaying = false;

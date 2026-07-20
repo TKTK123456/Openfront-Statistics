@@ -58,7 +58,7 @@ const conquestFrames: Map<number, number>[] =
   tilesConquredHandler.conquestFrames;
 fs.mkdirSync(outFolder, { recursive: true });
 await createCombinedTimelapse({
-  outPath: path.join(outFolder, `${gameID}.mp4`),
+  out: path.join(outFolder, `${gameID}.mp4`),
   width: gr.game.width(),
   height: gr.game.height(),
   background,

@@ -19,7 +19,6 @@ export class TileConqueredHandler {
   conquestWindow: Map<number, number> = new Map();
   conquestFrames: Map<number, number>[] = [];
   borderFrames: Int32Array[] = [];
-  borderOwner: string[][] = [];
 
   conqueredTile = (tile: number) => {
     this.conquestWindow.set(tile, (this.conquestWindow.get(tile) ?? 0) + 1);
@@ -33,15 +32,11 @@ export class TileConqueredHandler {
     this.conquestFrames.push(new Map(this.conquestWindow));
     this.conquestWindow.clear();
     const border: number[] = [];
-    const owner: string[] = [];
     for (const p of this.gr.game.players()) {
-      const id = p.id();
       for (const t of p.borderTiles()) {
-        owner.push(id);
         border.push(t);
       }
     }
     this.borderFrames.push(Int32Array.from(border));
-    this.borderOwner.push(owner);
   };
 }
