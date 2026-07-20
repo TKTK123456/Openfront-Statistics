@@ -14,6 +14,7 @@ import {
 import { decompressGameRecord } from "../../OpenFrontIO/src/core/Util";
 import { fileURLToPath } from "url";
 import { WebSocket } from "ws";
+import { PNG } from "pngjs";
 
 export class gameMapLoader implements GameMapLoader {
   constructor(private mapsDir: string) {}
@@ -63,4 +64,16 @@ export function sendImage(ws: WebSocket, type: number, data: Buffer) {
   data.copy(packet, 1);
 
   ws.send(packet, { binary: true });
+}
+
+export function createImageBuffer(
+  config: {
+    width: number;
+    height: number;
+  },
+  data: Uint8ClampedArray,
+) {
+  const img = new PNG(config);
+  img.data.set(data);
+  return PNG.sync.write(img);
 }

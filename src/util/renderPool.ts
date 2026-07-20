@@ -3,7 +3,7 @@ import type { Transferable } from "worker_threads";
 import { availableParallelism } from "os";
 import { VideoEncoder } from "../visualization/encode";
 import { WebSocket } from "ws";
-import { sendImage } from "./util";
+import { sendImage, createImageBuffer } from "./util";
 
 // Renders frames across a pool of worker threads and writes them to the encoder
 // in frame order. Bounds how far dispatch may run ahead of writing so
@@ -27,7 +27,7 @@ export async function renderFramesToVideo(params: {
     1,
     Math.min(Math.round(availableParallelism() / 2), frameCount),
   );
-  const maxAhead = poolSize + 4; // in-flight cap
+  const maxAhead = encoder instanceof WebSocket ? 2 : poolSize + 4; // in-flight cap
 
   const workers = Array.from(
     { length: poolSize },
@@ -61,19 +61,19 @@ export async function renderFramesToVideo(params: {
         ready.delete(nextToWrite);
         if (encoder instanceof VideoEncoder) await encoder.writeFrame(rgba);
         else {
-          const pixelBuffer = Buffer.from(
-            rgba.buffer,
-            rgba.byteOffset,
-            rgba.byteLength,
+          const img = createImageBuffer(
+            {
+              width: (workerData as any).width,
+              height: (workerData as any).height,
+            },
+            rgba,
           );
+          const packet = Buffer.allocUnsafe(4 + img.length);
 
-          const packet = Buffer.allocUnsafe(4 + pixelBuffer.length);
-
-          // Store frame number
           packet.writeUInt32LE(nextToWrite, 0);
 
-          // Store RGBA bytes
-          pixelBuffer.copy(packet, 4);
+          img.copy(packet, 4);
+
           sendImage(encoder, 3, packet);
         }
         onProgress?.(++nextToWrite);
