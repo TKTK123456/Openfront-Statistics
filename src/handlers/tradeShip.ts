@@ -46,7 +46,10 @@ export class TradeShipHandler {
   };
 
   tickHandler = (g: GameUpdateViewData | ErrorUpdate, turnNum: number) => {
-    if ((turnNum + 1) % (this.turnInterval * 6) === 0 || this.gr.game.getWinner() !== null) {
+    if (
+      (turnNum + 1) % (this.turnInterval * 6) === 0 ||
+      this.gr.game.getWinner() !== null
+    ) {
       this.allSections.push(this.currentSection);
       this.currentSection = new Map();
     }

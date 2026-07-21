@@ -4,13 +4,25 @@ import express from "express";
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
+import * as esbuild from "esbuild";
 
 import { GameHanlderWorkerResult, runGame } from "./runGame";
 import { createHeatmap, heatmapCreator } from "src/visualization/heatmap";
-import { WebSocket } from "ws";
-import { createImageBuffer, sendImage } from "src/util/util";
+import { createImageBuffer, sendBuffer, mapsToBinary } from "src/util/util";
 import { createCombinedTimelapse } from "src/visualization/timelapse";
+
+const clientBundle = (
+  await esbuild.build({
+    entryPoints: ["src/client/main.ts"],
+    bundle: true,
+    write: false, // don't create files
+    platform: "browser",
+    format: "esm",
+    target: "es2022",
+    sourcemap: "inline",
+  })
+).outputFiles[0].text;
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +42,11 @@ export interface Game {
 //Connect to a DB so that node doesn't run out of memory or whatever
 
 const games: Map<string, Game> = new Map();
+
+app.get("/client.js", (_, res) => {
+  res.type("application/javascript");
+  res.send(clientBundle);
+});
 
 // Serve the page immediately.
 // The page will connect to the websocket to request the data.
@@ -66,13 +83,22 @@ export async function gameProcessor(
       },
     }),
   );
-  sendImage(ws, 0, createImageBuffer(imgConfig, game.fullGame));
+  sendBuffer(ws, 0, createImageBuffer(imgConfig, game.fullGame));
 
-  sendImage(ws, 1, createImageBuffer(imgConfig, game.tradeShipRoutesOutput));
+  sendBuffer(ws, 1, createImageBuffer(imgConfig, game.tradeShipRoutesOutput));
 
-  sendImage(ws, 2, createImageBuffer(imgConfig, game.pirating));
+  sendBuffer(ws, 2, createImageBuffer(imgConfig, game.pirating));
 
-  if (game.background !== undefined)
+  if (game.background !== undefined) {
+    sendBuffer(ws, 5, createImageBuffer(imgConfig, game.background));
+    const uint32 = mapsToBinary(game.tradeShipRoutesTime);
+
+    const buffer = Buffer.from(
+      uint32.buffer,
+      uint32.byteOffset,
+      uint32.byteLength,
+    );
+    sendBuffer(ws, 4, buffer);
     await createCombinedTimelapse({
       out: ws,
       width: game.width,
@@ -83,6 +109,7 @@ export async function gameProcessor(
       dataFrames: game.conquestFrames,
       wsType: "conquered",
     });
+  }
 }
 
 wss.on("connection", (ws) => {

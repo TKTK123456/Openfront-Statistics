@@ -3,7 +3,7 @@ import type { Transferable } from "worker_threads";
 import { availableParallelism } from "os";
 import { VideoEncoder } from "../visualization/encode";
 import { WebSocket } from "ws";
-import { sendImage, createImageBuffer } from "./util";
+import { sendBuffer, createImageBuffer } from "./util";
 
 // Renders frames across a pool of worker threads and writes them to the encoder
 // in frame order. Bounds how far dispatch may run ahead of writing so
@@ -86,12 +86,9 @@ export async function renderFramesToVideo(params: {
               case "conquered":
                 type = 3;
                 break;
-              case "tradeRoute":
-                type = 4;
-                break;
             }
           }
-          sendImage(encoder, type, packet);
+          sendBuffer(encoder, type, packet);
         }
         onProgress?.(++nextToWrite);
       }

@@ -24,7 +24,6 @@ export async function createCombinedTimelapse(opts: {
     );
   }
   const frameCount = Math.min(opts.borderFrames.length, opts.dataFrames.length);
-  console.log(frameCount, opts.borderFrames.length, opts.dataFrames.length);
   let encoder: VideoEncoder | WebSocket;
   if (out instanceof WebSocket) {
     encoder = out;
@@ -81,5 +80,5 @@ export async function createCombinedTimelapse(opts: {
     wsType,
   });
 
-  await encoder.close();
+  if (!(out instanceof WebSocket)) await encoder.close();
 }

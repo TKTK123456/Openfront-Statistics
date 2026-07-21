@@ -20,7 +20,7 @@
     "useDefineForClassFields": false,
     "strictPropertyInitialization": false,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
   },
   "include": [
     "OpenFrontIO/src/**/*",

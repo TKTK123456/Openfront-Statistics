@@ -57,7 +57,7 @@ export const PROJECT_ROOT = path.resolve(
   "../../OpenFrontIO",
 );
 
-export function sendImage(ws: WebSocket, type: number, data: Buffer) {
+export function sendBuffer(ws: WebSocket, type: number, data: Buffer) {
   const packet = Buffer.allocUnsafe(1 + data.length);
 
   packet.writeUInt8(type, 0);
@@ -106,10 +106,7 @@ export function interpolateFrames(
 
         const value = a + (b - a) * t;
 
-        // Skip values that are effectively zero
-        //if (value > 0.0001) {
-          interpolated.set(key, value);
-        //}
+        interpolated.set(key, value);
       }
 
       result.push(interpolated);
@@ -118,4 +115,48 @@ export function interpolateFrames(
   result.push(frames[frames.length - 1]);
 
   return result;
+}
+
+export function mapsToBinary(maps: Map<number, number>[]): Uint32Array {
+  let length = 1; // number of maps
+
+  for (const map of maps) {
+    length += 1 + map.size * 2;
+  }
+
+  const data = new Uint32Array(length);
+
+  let i = 0;
+  data[i++] = maps.length;
+
+  for (const map of maps) {
+    data[i++] = map.size;
+
+    for (const [key, value] of map) {
+      data[i++] = key;
+      data[i++] = value;
+    }
+  }
+
+  return data;
+}
+
+export function binaryToMaps(data: Uint32Array): Map<number, number>[] {
+  let i = 0;
+  const mapCount = data[i++];
+
+  const maps: Map<number, number>[] = [];
+
+  for (let m = 0; m < mapCount; m++) {
+    const size = data[i++];
+    const map = new Map<number, number>();
+
+    for (let j = 0; j < size; j++) {
+      map.set(data[i++], data[i++]);
+    }
+
+    maps.push(map);
+  }
+
+  return maps;
 }
