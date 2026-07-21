@@ -77,3 +77,45 @@ export function createImageBuffer(
   img.data.set(data);
   return PNG.sync.write(img);
 }
+
+export function interpolateFrames(
+  frames: Map<number, number>[],
+  factor: number,
+): Map<number, number>[] {
+  if (frames.length <= 1 || factor <= 1) return frames;
+
+  const result: Map<number, number>[] = [];
+
+  for (let i = 0; i < frames.length - 1; i++) {
+    const current = frames[i];
+    const next = frames[i + 1];
+
+    // Original frame
+    result.push(current);
+
+    // Interpolated frames
+    for (let step = 1; step < factor; step++) {
+      const t = step / factor;
+      const interpolated = new Map<number, number>();
+
+      const keys = new Set([...current.keys(), ...next.keys()]);
+
+      for (const key of keys) {
+        const a = current.get(key) ?? 0;
+        const b = next.get(key) ?? 0;
+
+        const value = a + (b - a) * t;
+
+        // Skip values that are effectively zero
+        //if (value > 0.0001) {
+          interpolated.set(key, value);
+        //}
+      }
+
+      result.push(interpolated);
+    }
+  }
+  result.push(frames[frames.length - 1]);
+
+  return result;
+}

@@ -1,6 +1,9 @@
 import { simGame } from "src/server/simGame";
-import { createTilesConquredHeatmap } from "src/visualization/tilesConqured";
-import { tradeShipRoutes } from "src/visualization/tradeShip";
+import { createTilesConquredHeatmap } from "src/visualization/tilesConquered";
+import {
+  tradeShipRoutes,
+  tradeShipRoutesThroughTime,
+} from "src/visualization/tradeShip";
 import { piratingHeatmap } from "src/visualization/warship";
 import { parentPort, Transferable } from "worker_threads";
 
@@ -43,6 +46,16 @@ parentPort.on("message", async (gameID: string) => {
       "",
       { createFile: false, newHeatmapCreator: true },
     );
+    const tradeShipRoutesTime = (
+      await tradeShipRoutesThroughTime(
+        handlers.tradeShipHandler,
+        handlers.gr,
+        handlers.gameInfo,
+        handlers.mapLoader,
+        "",
+        { createFile: false, newHeatmapCreator: true },
+      )
+    )?.routeFrames;
     if (
       output === undefined ||
       output.fullGame === undefined ||
@@ -50,7 +63,8 @@ parentPort.on("message", async (gameID: string) => {
       output.conquestFrames === undefined ||
       tradeShipRoutesOutput === undefined ||
       pirating === undefined ||
-      output.background === undefined
+      output.background === undefined ||
+      tradeShipRoutesTime === undefined
     ) {
       throw new Error("Missing heatmap output");
     }
@@ -68,6 +82,7 @@ parentPort.on("message", async (gameID: string) => {
         fullGame: output.fullGame.buffer,
         tradeShipRoutesOutput: tradeShipRoutesOutput.buffer,
         pirating: pirating.buffer,
+        tradeShipRoutesTime,
       },
       [
         output.fullGame.buffer as Transferable,

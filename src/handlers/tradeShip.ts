@@ -18,6 +18,8 @@ export class TradeShipHandler {
   }
 
   public allRoutes: Map<string, number> = new Map();
+  private currentSection: Map<string, number> = new Map();
+  public allSections: Map<string, number>[] = [];
   private trackingRoutes: Map<number, TileRef[]> = new Map();
 
   tradeShipExecHandler = (self: TradeShipExecution) => {
@@ -39,8 +41,14 @@ export class TradeShipHandler {
     const route = this.trackingRoutes.get(id) ?? [];
     const key = route.join(",");
     this.allRoutes.set(key, (this.allRoutes.get(key) ?? 0) + 1);
+    this.currentSection.set(key, (this.currentSection.get(key) ?? 0) + 1);
     this.trackingRoutes.delete(id);
   };
 
-  tickHandler = (g: GameUpdateViewData | ErrorUpdate, turnNum: number) => {};
+  tickHandler = (g: GameUpdateViewData | ErrorUpdate, turnNum: number) => {
+    if ((turnNum + 1) % (this.turnInterval * 6) === 0 || this.gr.game.getWinner() !== null) {
+      this.allSections.push(this.currentSection);
+      this.currentSection = new Map();
+    }
+  };
 }

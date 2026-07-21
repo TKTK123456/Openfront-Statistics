@@ -7,7 +7,7 @@ import {
   gameRunnerHandlerConfig,
   handleGameRunner,
 } from "../src/GameRunnerHandler/gameRunnerHandler";
-import { createTilesConquredHeatmap } from "../src/visualization/tilesConqured";
+import { createTilesConquredHeatmap } from "../src/visualization/tilesConquered";
 import { TradeShipExecution } from "../OpenFrontIO/src/core/execution/TradeShipExecution";
 import { TradeShipHandler } from "../src/handlers/tradeShip";
 import { tradeShipRoutes } from "../src/visualization/tradeShip";

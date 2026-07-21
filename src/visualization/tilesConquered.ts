@@ -16,7 +16,6 @@ interface HeatmapOutput {
   conquestFrames?: Map<number, number>[];
   background?: Uint8ClampedArray;
   gradient?: Gradient;
-  ownerFrames?: string[][];
 }
 export async function createTilesConquredHeatmap(
   tileConqueredHandler: TileConqueredHandler,
@@ -99,7 +98,7 @@ export async function createTilesConquredHeatmap(
   }
   if (options.video) {
     const borderFrames: Int32Array[] = tileConqueredHandler.borderFrames;
-    const conquestFrames: Map<number, number>[] =
+    const dataFrames: Map<number, number>[] =
       tileConqueredHandler.conquestFrames;
 
     const background = await heatmapMaker.mapBackground();
@@ -114,13 +113,13 @@ export async function createTilesConquredHeatmap(
         background,
         gradient: heatmapMaker.gradient,
         borderFrames,
-        conquestFrames,
+        dataFrames,
       });
     } else {
       output.background = background;
       output.gradient = heatmapMaker.gradient;
       output.borderFrames = borderFrames;
-      output.conquestFrames = conquestFrames;
+      output.conquestFrames = dataFrames;
     }
   }
   if (!options.createFiles) return output;

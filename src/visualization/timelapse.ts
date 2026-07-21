@@ -12,15 +12,19 @@ export async function createCombinedTimelapse(opts: {
   height: number;
   background: Uint8ClampedArray;
   gradient: Gradient;
-  borderFrames: Int32Array[];
-  conquestFrames: Map<number, number>[];
+  borderFrames: Int32Array[] | null;
+  dataFrames: Map<number, number>[];
+  wsType?: string;
 }) {
-  const { out, width, height, background, gradient } = opts;
-  const frameCount = Math.min(
-    opts.borderFrames.length,
-    opts.conquestFrames.length,
-  );
-
+  const { out, width, height, background, gradient, wsType } = opts;
+  if (opts.borderFrames === null) {
+    opts.borderFrames = Array.from(
+      { length: opts.dataFrames.length },
+      () => new Int32Array(0),
+    );
+  }
+  const frameCount = Math.min(opts.borderFrames.length, opts.dataFrames.length);
+  console.log(frameCount, opts.borderFrames.length, opts.dataFrames.length);
   let encoder: VideoEncoder | WebSocket;
   if (out instanceof WebSocket) {
     encoder = out;
@@ -40,8 +44,14 @@ export async function createCombinedTimelapse(opts: {
     },
     frameCount,
     frameInput: (i) => {
+      if (opts.borderFrames === null) {
+        opts.borderFrames = Array.from(
+          { length: opts.dataFrames.length },
+          () => new Int32Array(0),
+        );
+      }
       const border = opts.borderFrames[i];
-      const window = opts.conquestFrames[i];
+      const window = opts.dataFrames[i];
       const tiles = new Int32Array(window.size);
       const counts = new Float64Array(window.size);
       let k = 0;
@@ -53,7 +63,6 @@ export async function createCombinedTimelapse(opts: {
       const borderBuffer = border.slice().buffer as ArrayBuffer;
       const tilesBuffer = tiles.slice().buffer as ArrayBuffer;
       const countsBuffer = counts.slice().buffer as ArrayBuffer;
-
       return {
         message: {
           borderTiles: borderBuffer,
@@ -69,6 +78,7 @@ export async function createCombinedTimelapse(opts: {
         console.log(`Encoded frame ${n}/${frameCount}`);
       }
     },
+    wsType,
   });
 
   await encoder.close();

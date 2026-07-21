@@ -64,6 +64,6 @@ await createCombinedTimelapse({
   background,
   gradient: heatmap.gradient,
   borderFrames,
-  conquestFrames,
+  dataFrames: conquestFrames,
 });
 console.log("Done");

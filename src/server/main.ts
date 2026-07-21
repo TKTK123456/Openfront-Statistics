@@ -80,7 +80,8 @@ export async function gameProcessor(
       background: game.background,
       gradient: heatmapCreator.defaultGradient,
       borderFrames: game.borderFrames,
-      conquestFrames: game.conquestFrames,
+      dataFrames: game.conquestFrames,
+      wsType: "conquered",
     });
 }
 

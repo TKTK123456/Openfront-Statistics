@@ -18,9 +18,17 @@ export async function renderFramesToVideo(params: {
   };
   encoder: VideoEncoder | WebSocket; // already opened
   onProgress?: (written: number) => void;
+  wsType?: string;
 }): Promise<void> {
-  const { workerUrl, workerData, frameCount, frameInput, encoder, onProgress } =
-    params;
+  const {
+    workerUrl,
+    workerData,
+    frameCount,
+    frameInput,
+    encoder,
+    onProgress,
+    wsType,
+  } = params;
   if (frameCount === 0) return;
 
   const poolSize = Math.max(
@@ -38,7 +46,6 @@ export async function renderFramesToVideo(params: {
   let nextToDispatch = 0;
   let nextToWrite = 0;
   let writing = false;
-
   return new Promise<void>((resolve, reject) => {
     const pump = () => {
       while (
@@ -73,8 +80,18 @@ export async function renderFramesToVideo(params: {
           packet.writeUInt32LE(nextToWrite, 0);
 
           img.copy(packet, 4);
-
-          sendImage(encoder, 3, packet);
+          let type = 3;
+          if (wsType !== undefined) {
+            switch (wsType) {
+              case "conquered":
+                type = 3;
+                break;
+              case "tradeRoute":
+                type = 4;
+                break;
+            }
+          }
+          sendImage(encoder, type, packet);
         }
         onProgress?.(++nextToWrite);
       }

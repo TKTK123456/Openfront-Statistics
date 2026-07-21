@@ -17,11 +17,20 @@ import { TileConqueredHandler } from "./handlers/conqueredTiles";
 import { TradeShipHandler } from "./handlers/tradeShip";
 import { WarshipHandler } from "./handlers/warship";
 import { piratingHeatmap } from "./visualization/warship";
-import { tradeShipRoutes } from "./visualization/tradeShip";
-import { createTilesConquredHeatmap } from "./visualization/tilesConqured";
+import {
+  tradeShipRoutes,
+  tradeShipRoutesThroughTime,
+} from "./visualization/tradeShip";
+import { createTilesConquredHeatmap } from "./visualization/tilesConquered";
 import { GameStartInfo, Turn } from "../OpenFrontIO/src/core/Schemas";
 const startTime = Date.now();
-const HANDLER_NAMES = ["tilesConquered", "tradeShipRoutes", "pirating", "all"];
+const HANDLER_NAMES = [
+  "tilesConquered",
+  "tradeShipRoutes",
+  "tradeRoutesThroughTime",
+  "pirating",
+  "all",
+];
 type HandlerName = (typeof HANDLER_NAMES)[number];
 class Handlers {
   public turnInterval: number;
@@ -157,6 +166,34 @@ class Handlers {
         );
       });
     },
+    tradeRoutesThroughTime: () => {
+      const allHandlers = this.allHandlers;
+      const visualizations = this.visualizations;
+      const otherHandlers = this.otherHandlers;
+      if (!this.handlerNames.includes("tradeShipRoutes")) {
+        allHandlers.tradeShip = new TradeShipHandler(
+          this.turnInterval,
+          this.gr,
+          this.totalTurns,
+        );
+        otherHandlers.executions?.tradeShip?.push(
+          allHandlers.tradeShip.tradeShipExecHandler,
+        );
+        otherHandlers.executions?.tradeShipFinish?.push(
+          allHandlers.tradeShip.tradeShipFinishHandler,
+        );
+      }
+      this.allTickHandlers.push(allHandlers.tradeShip.tickHandler);
+      visualizations.push(async () => {
+        await tradeShipRoutesThroughTime(
+          allHandlers.tradeShip,
+          this.gr,
+          this.gameInfo,
+          this.gameRunnerHandler.mapLoader,
+          this.outFolder,
+        );
+      });
+    },
   };
   public visualizations: Array<() => Promise<void>> = [];
   init = () => {
@@ -235,7 +272,8 @@ const main = async () => {
     printHelp();
     process.exit(1);
   }
-
+  if (args.handlers.length > 1 && args.handlers.includes("all"))
+    args.handlers = ["all"];
   let outFolder = path.join(process.cwd(), args.out);
   const gameID = args.gameId;
   const turnInterval = parseInt(args.turnInterval);
