@@ -9,15 +9,16 @@ import * as esbuild from "esbuild";
 
 import { GameHanlderWorkerResult, runGame } from "./runGame";
 import { createHeatmap, heatmapCreator } from "src/visualization/heatmap";
-import { createImageBuffer, sendBuffer, mapsToBinary } from "src/util/util";
+import { createImageBuffer, sendBuffer } from "src/util/util";
 import { createCombinedTimelapse } from "src/visualization/timelapse";
+import { mapsToBinary } from "src/shared/util";
 
 const clientBundle = (
   await esbuild.build({
     entryPoints: ["src/client/main.ts"],
     bundle: true,
     write: false, // don't create files
-    platform: "browser",
+    platform: "node",
     format: "esm",
     target: "es2022",
     sourcemap: "inline",

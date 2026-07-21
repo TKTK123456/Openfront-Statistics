@@ -1,5 +1,5 @@
 import { TradeShipHandler } from "src/handlers/tradeShip";
-import { gameMapLoader, interpolateFrames } from "src/util/util";
+import { gameMapLoader } from "src/util/util";
 import { GameRunner } from "../../OpenFrontIO/src/core/GameRunner";
 import { GameStartInfo, Turn } from "../../OpenFrontIO/src/core/Schemas";
 import { Gradient, heatmapCreator } from "./heatmap";
@@ -8,6 +8,7 @@ import { GameMapSize } from "../../OpenFrontIO/src/core/game/Game";
 import path from "path";
 import { PNG } from "pngjs";
 import { createCombinedTimelapse } from "./timelapse";
+import { interpolateFrames } from "src/shared/util";
 
 interface tradeRouteTimelapseOut {
   routeFrames?: Map<number, number>[];

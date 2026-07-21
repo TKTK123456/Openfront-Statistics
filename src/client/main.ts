@@ -1,3 +1,5 @@
+import { binaryToMaps } from "src/shared/util";
+
 async function start(gameID: string): Promise<void> {
   const frameCache = new Map<number, Uint8Array>();
 
@@ -33,6 +35,7 @@ async function start(gameID: string): Promise<void> {
   let loadedFrames = 0;
 
   const bg = new Image();
+  let tradeShipRoutesTime: Map<number, number>[] = [];
 
   function drawPngBufferToCanvas(
     buffer: Uint8Array | ArrayBuffer,
@@ -101,6 +104,17 @@ async function start(gameID: string): Promise<void> {
           drawPngBufferToCanvas(img, 0);
         }
       } else if (type === 4) {
+        const bytes = new Uint8Array(data);
+
+        // Skip the 1-byte type
+        const payload = bytes.subarray(1);
+        const isolatedBuffer = payload.buffer.slice(
+          payload.byteOffset,
+          payload.byteOffset + payload.byteLength,
+        );
+        const uint32 = new Uint32Array(isolatedBuffer);
+
+        tradeShipRoutesTime = binaryToMaps(uint32);
       } else {
         const imageBytes = bytes.slice(1);
 
