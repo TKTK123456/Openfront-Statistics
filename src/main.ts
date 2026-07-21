@@ -2,7 +2,7 @@ import { GameRunner } from "../OpenFrontIO/src/core/GameRunner";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { fetchGame } from "./util/util";
+import { fetchGame } from "./shared/util";
 import {
   gameRunnerHandlerConfig,
   handleGameRunner,

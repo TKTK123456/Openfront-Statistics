@@ -59,6 +59,32 @@
       code {
         color: #7ed6ff;
       }
+
+      .map-stack {
+        position: relative;
+        width: 100%;
+        display: inline-block;
+      }
+
+      .map-stack img,
+      .map-stack canvas {
+        display: block;
+        width: 100%;
+        image-rendering: pixelated;
+        border: 1px solid #444;
+      }
+
+      .map-stack img {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+      }
+
+      .map-stack canvas {
+        position: relative;
+        z-index: 1;
+        background: transparent;
+      }
     </style>
   </head>
 
@@ -96,10 +122,9 @@
 
       <div class="card">
         <h2>Timelapses</h2>
-
+        <h3>Tiles conquered</h3>
         <canvas id="map"></canvas>
 
-        <canvas id="tradeRouteMap"></canvas>
         <div
           style="
             margin-top: 15px;
@@ -108,12 +133,12 @@
             gap: 10px;
           "
         >
-          <button onclick="playVideo()">Play</button>
-          <button onclick="stopVideo()">Pause</button>
-          <button onclick="previousFrame()">◀ Previous</button>
+          <button name="play">Play</button>
+          <button name="pause">Pause</button>
+          <button name="previous">◀ Previous</button>
 
           <input
-            id="frameSlider"
+            id="tileConqueredFrameSlider"
             type="range"
             min="0"
             max="0"
@@ -121,7 +146,37 @@
             style="flex: 1"
           />
 
-          <button onclick="nextFrame()">Next ▶</button>
+          <button name="next">Next ▶</button>
+          <br />
+        </div>
+        <h3>Trade routes</h3>
+
+        <div class="map-stack">
+          <img id="tradeRouteBackground" />
+          <canvas id="tradeRouteMap"></canvas>
+        </div>
+        <div
+          style="
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          "
+        >
+          <button name="play">Play</button>
+          <button name="pause">Pause</button>
+          <button name="previous">◀ Previous</button>
+
+          <input
+            id="tradeRouteFrameSlider"
+            type="range"
+            min="0"
+            max="0"
+            value="0"
+            style="flex: 1"
+          />
+
+          <button name="next">Next ▶</button>
           <br />
         </div>
       </div>

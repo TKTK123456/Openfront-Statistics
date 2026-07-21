@@ -124,7 +124,7 @@ export function createHeatmap(
   height: number,
   radius: number,
   radiusSq: number,
-  base: Uint8ClampedArray,
+  base: Uint8ClampedArray | null,
   gradient: Gradient,
   frequencieMultiplier: number = 0.01,
 ): Uint8ClampedArray {
@@ -166,7 +166,6 @@ export function createHeatmap(
   for (const value of heatAlpha) {
     if (value > maxHeat) maxHeat = value;
   }
-
   const out = new Uint8ClampedArray(width * height * 4);
 
   const denom = maxHeat > 0 ? Math.log2(maxHeat + 1) : 0;
@@ -179,19 +178,22 @@ export function createHeatmap(
     const [r, g, b, a] = interpolateColor(alpha, gradient);
 
     const ha = a / 255;
-
+    let frameBase: number[];
+    if (base !== null)
+      frameBase = [base[idx], base[idx + 1], base[idx + 2], 255];
+    else frameBase = [0, 0, 0, a];
     if (ha === 0) {
-      out[idx] = base[idx];
-      out[idx + 1] = base[idx + 1];
-      out[idx + 2] = base[idx + 2];
-      out[idx + 3] = 255;
+      out[idx] = frameBase[0];
+      out[idx + 1] = frameBase[1];
+      out[idx + 2] = frameBase[2];
+      out[idx + 3] = frameBase[3];
       continue;
     }
 
-    out[idx] = Math.round(r * ha + base[idx] * (1 - ha));
-    out[idx + 1] = Math.round(g * ha + base[idx + 1] * (1 - ha));
-    out[idx + 2] = Math.round(b * ha + base[idx + 2] * (1 - ha));
-    out[idx + 3] = 255;
+    out[idx] = Math.round(r * ha + frameBase[0] * (1 - ha));
+    out[idx + 1] = Math.round(g * ha + frameBase[1] * (1 - ha));
+    out[idx + 2] = Math.round(b * ha + frameBase[2] * (1 - ha));
+    out[idx + 3] = frameBase[3];
   }
 
   return out;

@@ -68,7 +68,6 @@ parentPort.on("message", async (gameID: string) => {
     ) {
       throw new Error("Missing heatmap output");
     }
-    console.log("Got to here");
     parentPort!.postMessage(
       {
         type: "finish",

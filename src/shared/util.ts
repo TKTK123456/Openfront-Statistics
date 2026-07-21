@@ -1,3 +1,10 @@
+import {
+  GameStartInfo,
+  Turn,
+  GameStartInfoSchema,
+} from "../../OpenFrontIO/src/core/Schemas";
+import { decompressGameRecord } from "../../OpenFrontIO/src/core/Util";
+
 export function interpolateFrames(
   frames: Map<number, number>[],
   factor: number,
@@ -79,4 +86,40 @@ export function binaryToMaps(data: Uint32Array): Map<number, number>[] {
   }
 
   return maps;
+}
+
+export async function fetchGame(
+  id: string,
+): Promise<[GameStartInfo | undefined, Turn[]]> {
+  let res = await fetch("https://api.openfront.io/public/game/" + id);
+  const json = await res.json();
+  const startInfo = GameStartInfoSchema.safeParse(json.info);
+  const turns = decompressGameRecord(json).turns;
+  return [startInfo.data, turns];
+}
+
+export function mapToBinary(map: Map<number, number>): Uint32Array {
+  const data = new Uint32Array(1 + map.size * 2);
+
+  data[0] = map.size;
+
+  let i = 1;
+  for (const [key, value] of map) {
+    data[i++] = key;
+    data[i++] = value;
+  }
+
+  return data;
+}
+
+export function binaryToMap(data: Uint32Array): Map<number, number> {
+  const size = data[0];
+  const map = new Map<number, number>();
+
+  let i = 1;
+  for (let j = 0; j < size; j++) {
+    map.set(data[i++], data[i++]);
+  }
+
+  return map;
 }

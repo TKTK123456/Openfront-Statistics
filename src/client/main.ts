@@ -1,71 +1,88 @@
 import { binaryToMaps } from "src/shared/util";
+import { timelapse } from "./timelapses";
 
-async function start(gameID: string): Promise<void> {
-  const frameCache = new Map<number, Uint8Array>();
+const frameCache = new Map<number, Uint8Array>();
 
-  const socket: globalThis.WebSocket = new WebSocket(
-    `ws://${location.host}/ws`,
+const socket: globalThis.WebSocket = new WebSocket(`ws://${location.host}/ws`);
+socket.binaryType = "arraybuffer";
+
+const status = document.getElementById("status") as HTMLDivElement;
+const progress = document.getElementById("progress") as HTMLProgressElement;
+
+const conquered = document.getElementById("conquered") as HTMLImageElement;
+const trade = document.getElementById("trade") as HTMLImageElement;
+const pirating = document.getElementById("pirating") as HTMLImageElement;
+
+const canvas = document.getElementById("map") as HTMLCanvasElement;
+const ctx = canvas.getContext("2d")!;
+
+const tradeCanvas = document.getElementById(
+  "tradeRouteMap",
+) as HTMLCanvasElement;
+const tradeCtx = tradeCanvas.getContext("2d")!;
+const bg = document.getElementById("tradeRouteBackground") as HTMLImageElement;
+
+const frameSliders = [
+  document.getElementById("tileConqueredFrameSlider") as HTMLInputElement,
+  document.getElementById("tradeRouteFrameSlider") as HTMLInputElement,
+];
+
+let tradeRouteTimelapse: timelapse;
+let width = 0;
+let height = 0;
+
+let frame = [0, 0];
+let totalFrames = 0;
+let loadedFrames = 0;
+
+let tradeShipRoutesTime: Map<number, number>[] = [];
+
+function drawPngBufferToCanvas(
+  buffer: Uint8Array | ArrayBuffer,
+  whichCanvas: number,
+): void {
+  const blob = new Blob([buffer as BlobPart], {
+    type: "image/png",
+  });
+
+  const url = URL.createObjectURL(blob);
+
+  const img = new Image();
+
+  img.onload = () => {
+    if (whichCanvas === 0) {
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      ctx.drawImage(img, 0, 0);
+    } else {
+      tradeCanvas.width = img.width;
+      tradeCanvas.height = img.height;
+      tradeCtx.drawImage(img, 0, 0);
+    }
+    URL.revokeObjectURL(url);
+  };
+
+  img.src = url;
+}
+let bgReady = false;
+let tradeReady = false;
+
+function tryCreateTimelapse() {
+  if (!bgReady || !tradeReady) return;
+
+  console.log("Creating timelapse");
+
+  tradeRouteTimelapse = new timelapse(
+    width,
+    height,
+    tradeCanvas,
+    tradeCtx,
+    tradeShipRoutesTime,
+    bg,
   );
-  socket.binaryType = "arraybuffer";
-
-  const status = document.getElementById("status") as HTMLDivElement;
-  const progress = document.getElementById("progress") as HTMLProgressElement;
-
-  const conquered = document.getElementById("conquered") as HTMLImageElement;
-  const trade = document.getElementById("trade") as HTMLImageElement;
-  const pirating = document.getElementById("pirating") as HTMLImageElement;
-
-  const canvas = document.getElementById("map") as HTMLCanvasElement;
-  const ctx = canvas.getContext("2d")!;
-
-  const tradeCanvas = document.getElementById(
-    "tradeRouteMap",
-  ) as HTMLCanvasElement;
-  const tradeCtx = canvas.getContext("2d")!;
-
-  const frameSlider = document.getElementById(
-    "frameSlider",
-  ) as HTMLInputElement;
-
-  let width = 0;
-  let height = 0;
-
-  let frame = 0;
-  let totalFrames = 0;
-  let loadedFrames = 0;
-
-  const bg = new Image();
-  let tradeShipRoutesTime: Map<number, number>[] = [];
-
-  function drawPngBufferToCanvas(
-    buffer: Uint8Array | ArrayBuffer,
-    whichCanvas: number,
-  ): void {
-    const blob = new Blob([buffer as BlobPart], {
-      type: "image/png",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const img = new Image();
-
-    img.onload = () => {
-      if (whichCanvas === 0) {
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        ctx.drawImage(img, 0, 0);
-      } else {
-        tradeCanvas.width = img.width;
-        tradeCanvas.height = img.height;
-        tradeCtx.drawImage(img, 0, 0);
-      }
-      URL.revokeObjectURL(url);
-    };
-
-    img.src = url;
-  }
-
+}
+async function start(gameID: string): Promise<void> {
   socket.onopen = () => {
     socket.send(
       JSON.stringify({
@@ -100,7 +117,7 @@ async function start(gameID: string): Promise<void> {
 
         frameCache.set(frameIndex, img);
 
-        if (frame === frameIndex) {
+        if (frame[0] === frameIndex) {
           drawPngBufferToCanvas(img, 0);
         }
       } else if (type === 4) {
@@ -113,8 +130,9 @@ async function start(gameID: string): Promise<void> {
           payload.byteOffset + payload.byteLength,
         );
         const uint32 = new Uint32Array(isolatedBuffer);
-
         tradeShipRoutesTime = binaryToMaps(uint32);
+        tradeReady = true;
+        tryCreateTimelapse();
       } else {
         const imageBytes = bytes.slice(1);
 
@@ -126,17 +144,32 @@ async function start(gameID: string): Promise<void> {
 
         switch (type) {
           case 0:
+            conquered.onload = () => {
+              URL.revokeObjectURL(url);
+            };
             conquered.src = url;
             break;
 
           case 1:
+            trade.onload = () => {
+              URL.revokeObjectURL(url);
+            };
             trade.src = url;
             break;
 
           case 2:
+            pirating.onload = () => {
+              URL.revokeObjectURL(url);
+            };
             pirating.src = url;
             break;
           case 5:
+            bg.onload = () => {
+              URL.revokeObjectURL(url);
+              bgReady = true;
+              tryCreateTimelapse();
+            };
+
             bg.src = url;
             break;
         }
@@ -167,98 +200,148 @@ async function start(gameID: string): Promise<void> {
         break;
     }
   };
-
-  function loadGame(data: {
-    width: number;
-    height: number;
-    frameCount: number;
-  }): void {
-    status.textContent = "Finished!";
-    progress.value = 100;
-
-    width = data.width;
-    height = data.height;
-
-    canvas.width = width;
-    canvas.height = height;
-
-    totalFrames = data.frameCount;
-
-    frameSlider.max = String(totalFrames - 1);
-    frameSlider.value = "0";
-  }
-
-  function drawFrame(index: number): void {
-    const frameData = frameCache.get(index);
-
-    if (frameData !== undefined) {
-      drawPngBufferToCanvas(frameData, 0);
-    }
-  }
-
-  function nextFrame(): void {
-    if (frame < totalFrames - 1) {
-      frame++;
-
-      frameSlider.value = String(frame);
-      drawFrame(frame);
-    }
-  }
-
-  function previousFrame(): void {
-    if (frame > 0) {
-      frame--;
-
-      frameSlider.value = String(frame);
-      drawFrame(frame);
-    }
-  }
-
-  let isPlaying = false;
-  let lastFrameTime = 0;
-
-  function playVideo(): void {
-    if (loadedFrames < totalFrames) {
-      return;
-    }
-
-    if (isPlaying) {
-      return;
-    }
-
-    isPlaying = true;
-    requestAnimationFrame(playLoop);
-  }
-
-  function playLoop(time: number): void {
-    if (!isPlaying) {
-      return;
-    }
-
-    if (time - lastFrameTime >= 1000 / 30) {
-      if (frame >= totalFrames - 1) {
-        stopVideo();
-        return;
-      }
-
-      frame++;
-
-      frameSlider.value = String(frame);
-      drawFrame(frame);
-
-      lastFrameTime = time;
-    }
-
-    requestAnimationFrame(playLoop);
-  }
-
-  function stopVideo(): void {
-    isPlaying = false;
-  }
-
-  frameSlider.addEventListener("input", () => {
-    frame = Number(frameSlider.value);
-    drawFrame(frame);
-  });
 }
+
+function loadGame(data: {
+  width: number;
+  height: number;
+  frameCount: number;
+}): void {
+  status.textContent = "Finished!";
+  progress.value = 100;
+
+  width = data.width;
+  height = data.height;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  totalFrames = data.frameCount;
+
+  frameSliders.forEach((s) => (s.max = String(totalFrames - 1)));
+  frameSliders.forEach((s) => (s.value = "0"));
+}
+
+function drawFrame(index: number, timelapse: number = 0): void {
+  let frameData;
+  if (timelapse === 0) {
+    frameData = frameCache.get(index);
+  } else if (timelapse === 1) {
+    frameData = tradeRouteTimelapse.drawFrame(index);
+  }
+
+  if (frameData !== undefined) {
+    drawPngBufferToCanvas(frameData, timelapse);
+  }
+}
+
+function nextFrame(timelapse: number = 0): void {
+  if (frame[timelapse] < totalFrames - 1) {
+    frame[timelapse]++;
+
+    frameSliders[timelapse].value = String(frame[timelapse]);
+    drawFrame(frame[timelapse], timelapse);
+  }
+}
+
+function previousFrame(timelapse: number = 0): void {
+  if (frame[timelapse] > 0) {
+    frame[timelapse]--;
+
+    frameSliders[timelapse].value = String(frame[timelapse]);
+    drawFrame(frame[timelapse], timelapse);
+  }
+}
+
+let isPlayingTileConquests = false;
+let isPlayingTradeRoute = false;
+let lastTileConquestFrameTime = 0;
+let lastTradeRouteFrameTime = 0;
+
+function playVideo(timelapse: number = 0): void {
+  if (loadedFrames < totalFrames) {
+    return;
+  }
+
+  if (
+    (isPlayingTileConquests && timelapse === 0) ||
+    (isPlayingTradeRoute && timelapse === 1)
+  ) {
+    return;
+  }
+
+  if (timelapse === 0) isPlayingTileConquests = true;
+  if (timelapse === 1) isPlayingTradeRoute = true;
+  requestAnimationFrame(playLoop);
+}
+
+function playTileConquestFrame(time: number) {
+  if (time - lastTileConquestFrameTime >= 1000 / 30) {
+    if (frame[0] >= totalFrames - 1) {
+      stopVideo();
+      return;
+    }
+
+    frame[0]++;
+
+    frameSliders[0].value = String(frame[0]);
+    drawFrame(frame[0]);
+
+    lastTileConquestFrameTime = time;
+  }
+}
+
+function playTradeRouteFrame(time: number) {
+  if (time - lastTradeRouteFrameTime >= 1000 / 30) {
+    if (frame[1] >= totalFrames - 1) {
+      stopVideo(1);
+      return;
+    }
+
+    frame[1]++;
+
+    frameSliders[1].value = String(frame[1]);
+    drawFrame(frame[1], 1);
+
+    lastTradeRouteFrameTime = time;
+  }
+}
+
+function playLoop(time: number): void {
+  if (isPlayingTileConquests) playTileConquestFrame(time);
+  if (isPlayingTradeRoute) playTradeRouteFrame(time);
+
+  if (isPlayingTileConquests || isPlayingTradeRoute)
+    requestAnimationFrame(playLoop);
+}
+
+function stopVideo(timelapse: number = 0): void {
+  if (timelapse === 0) isPlayingTileConquests = false;
+  if (timelapse === 1) isPlayingTradeRoute = false;
+}
+
+frameSliders[0].addEventListener("input", () => {
+  frame[0] = Number(frameSliders[0].value);
+  drawFrame(frame[0]);
+});
+frameSliders[1].addEventListener("input", () => {
+  frame[1] = Number(frameSliders[1].value);
+  drawFrame(frame[1], 1);
+});
+
 start(window.gameId);
+
+function setupButtons(buttonName: string, func: (timelapse: number) => void) {
+  const buttons = document.querySelectorAll<HTMLButtonElement>(
+    `[name="${buttonName}"]`,
+  );
+  for (let i = 0; i < buttons.length; i++) {
+    buttons[i].onclick = () => {
+      func(i);
+    };
+  }
+}
+setupButtons("play", playVideo);
+setupButtons("pause", stopVideo);
+setupButtons("next", nextFrame);
+setupButtons("previous", previousFrame);

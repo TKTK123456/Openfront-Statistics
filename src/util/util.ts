@@ -42,16 +42,6 @@ export class gameMapLoader implements GameMapLoader {
   }
 }
 
-export async function fetchGame(
-  id: string,
-): Promise<[GameStartInfo | undefined, Turn[]]> {
-  let res = await fetch("https://api.openfront.io/public/game/" + id);
-  const json = await res.json();
-  const startInfo = GameStartInfoSchema.safeParse(json.info);
-  const turns = decompressGameRecord(json).turns;
-  return [startInfo.data, turns];
-}
-
 export const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../OpenFrontIO",

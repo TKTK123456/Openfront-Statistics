@@ -1,4 +1,4 @@
-import { fetchGame } from "src/util/util";
+import { fetchGame } from "src/shared/util";
 import {
   gameRunnerHandlerConfig,
   handleGameRunner,
@@ -46,7 +46,10 @@ export async function simGame(
       tradeShipFinish: [handlers.tradeShipHandler.tradeShipFinishHandler],
     },
   };
-  const tickHandlers = [handlers.tileConqueredHandler.tickHandler];
+  const tickHandlers = [
+    handlers.tileConqueredHandler.tickHandler,
+    handlers.tradeShipHandler.tickHandler,
+  ];
   if (sendProgress !== undefined) {
     tickHandlers.push((g, turnNum: number) => {
       sendProgress((turnNum / totalTurns) * 100);
