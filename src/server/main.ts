@@ -5,25 +5,20 @@ import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { WebSocketServer, WebSocket } from "ws";
-import * as esbuild from "esbuild";
+import { createServer } from "vite";
 
 import { GameHanlderWorkerResult, runGame } from "./runGame";
-import { createHeatmap, heatmapCreator } from "src/visualization/heatmap";
+import { heatmapCreator } from "src/visualization/heatmap";
 import { createImageBuffer, sendBuffer } from "src/util/util";
 import { createCombinedTimelapse } from "src/visualization/timelapse";
 import { mapsToBinary } from "src/shared/util";
 
-const clientBundle = (
-  await esbuild.build({
-    entryPoints: ["src/client/main.ts"],
-    bundle: true,
-    write: false, // don't create files
-    platform: "node",
-    format: "esm",
-    target: "es2022",
-    sourcemap: "inline",
-  })
-).outputFiles[0].text;
+const vite = await createServer({
+  configFile: path.resolve("vite.config.ts"),
+  server: {
+    middlewareMode: true,
+  },
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -34,8 +29,6 @@ app.set(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "../views"),
 );
 
-app.use("/output", express.static("output"));
-
 export interface Game {
   gameHandlerResult: GameHanlderWorkerResult;
 }
@@ -44,10 +37,9 @@ export interface Game {
 
 const games: Map<string, Game> = new Map();
 
-app.get("/client.js", (_, res) => {
-  res.type("application/javascript");
-  res.send(clientBundle);
-});
+const browserSrcDirs = [path.resolve("src/client"), path.resolve("src/shared")];
+
+const pathCatch: Map<string, string> = new Map();
 
 // Serve the page immediately.
 // The page will connect to the websocket to request the data.
@@ -57,6 +49,7 @@ app.get("/game/:id", (req, res) => {
   });
 });
 
+app.use(vite.middlewares);
 const wss = new WebSocketServer({
   server,
   path: "/ws",

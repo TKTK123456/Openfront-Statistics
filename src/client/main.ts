@@ -1,5 +1,5 @@
 import { binaryToMaps } from "src/shared/util";
-import { timelapse } from "./timelapses";
+import { Timelapse } from "./timelapses";
 
 const frameCache = new Map<number, Uint8Array>();
 
@@ -27,7 +27,7 @@ const frameSliders = [
   document.getElementById("tradeRouteFrameSlider") as HTMLInputElement,
 ];
 
-let tradeRouteTimelapse: timelapse;
+let tradeRouteTimelapse: Timelapse;
 let width = 0;
 let height = 0;
 
@@ -37,33 +37,50 @@ let loadedFrames = 0;
 
 let tradeShipRoutesTime: Map<number, number>[] = [];
 
-function drawPngBufferToCanvas(
-  buffer: Uint8Array | ArrayBuffer,
+function drawBufferToCanvas(
+  buffer: Uint8Array | ArrayBuffer | ImageBitmap,
   whichCanvas: number,
-): void {
-  const blob = new Blob([buffer as BlobPart], {
-    type: "image/png",
-  });
+): Promise<void> {
+  return new Promise((resolve) => {
+    if (buffer instanceof ImageBitmap) {
+      if (whichCanvas === 0) {
+        canvas.width = buffer.width;
+        canvas.height = buffer.height;
+        ctx.drawImage(buffer, 0, 0);
+      } else {
+        tradeCanvas.width = buffer.width;
+        tradeCanvas.height = buffer.height;
+        tradeCtx.drawImage(buffer, 0, 0);
+      }
 
-  const url = URL.createObjectURL(blob);
-
-  const img = new Image();
-
-  img.onload = () => {
-    if (whichCanvas === 0) {
-      canvas.width = img.width;
-      canvas.height = img.height;
-
-      ctx.drawImage(img, 0, 0);
-    } else {
-      tradeCanvas.width = img.width;
-      tradeCanvas.height = img.height;
-      tradeCtx.drawImage(img, 0, 0);
+      resolve();
+      return;
     }
-    URL.revokeObjectURL(url);
-  };
 
-  img.src = url;
+    const blob = new Blob([buffer as BlobPart], {
+      type: "image/png",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    img.onload = () => {
+      if (whichCanvas === 0) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+      } else {
+        tradeCanvas.width = img.width;
+        tradeCanvas.height = img.height;
+        tradeCtx.drawImage(img, 0, 0);
+      }
+
+      URL.revokeObjectURL(url);
+      resolve();
+    };
+
+    img.src = url;
+  });
 }
 let bgReady = false;
 let tradeReady = false;
@@ -73,14 +90,7 @@ function tryCreateTimelapse() {
 
   console.log("Creating timelapse");
 
-  tradeRouteTimelapse = new timelapse(
-    width,
-    height,
-    tradeCanvas,
-    tradeCtx,
-    tradeShipRoutesTime,
-    bg,
-  );
+  tradeRouteTimelapse = new Timelapse(width, height, tradeShipRoutesTime);
 }
 async function start(gameID: string): Promise<void> {
   socket.onopen = () => {
@@ -118,7 +128,7 @@ async function start(gameID: string): Promise<void> {
         frameCache.set(frameIndex, img);
 
         if (frame[0] === frameIndex) {
-          drawPngBufferToCanvas(img, 0);
+          drawBufferToCanvas(img, 0);
         }
       } else if (type === 4) {
         const bytes = new Uint8Array(data);
@@ -215,6 +225,8 @@ function loadGame(data: {
 
   canvas.width = width;
   canvas.height = height;
+  tradeCanvas.width = width;
+  tradeCanvas.height = height;
 
   totalFrames = data.frameCount;
 
@@ -222,20 +234,20 @@ function loadGame(data: {
   frameSliders.forEach((s) => (s.value = "0"));
 }
 
-function drawFrame(index: number, timelapse: number = 0): void {
+async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
   let frameData;
   if (timelapse === 0) {
     frameData = frameCache.get(index);
   } else if (timelapse === 1) {
-    frameData = tradeRouteTimelapse.drawFrame(index);
+    frameData = await tradeRouteTimelapse.drawFrame(index);
   }
 
   if (frameData !== undefined) {
-    drawPngBufferToCanvas(frameData, timelapse);
+    await drawBufferToCanvas(frameData, timelapse);
   }
 }
 
-function nextFrame(timelapse: number = 0): void {
+async function nextFrame(timelapse: number = 0): Promise<void> {
   if (frame[timelapse] < totalFrames - 1) {
     frame[timelapse]++;
 
@@ -244,12 +256,12 @@ function nextFrame(timelapse: number = 0): void {
   }
 }
 
-function previousFrame(timelapse: number = 0): void {
+async function previousFrame(timelapse: number = 0): Promise<void> {
   if (frame[timelapse] > 0) {
     frame[timelapse]--;
 
     frameSliders[timelapse].value = String(frame[timelapse]);
-    drawFrame(frame[timelapse], timelapse);
+    await drawFrame(frame[timelapse], timelapse);
   }
 }
 
@@ -259,20 +271,17 @@ let lastTileConquestFrameTime = 0;
 let lastTradeRouteFrameTime = 0;
 
 function playVideo(timelapse: number = 0): void {
-  if (loadedFrames < totalFrames) {
-    return;
-  }
-
   if (
-    (isPlayingTileConquests && timelapse === 0) ||
-    (isPlayingTradeRoute && timelapse === 1)
+    (isPlayingTileConquests && timelapse === 0 && loadedFrames < totalFrames) ||
+    (isPlayingTradeRoute && timelapse === 1 && !tradeRouteTimelapse.ready)
   ) {
     return;
   }
 
   if (timelapse === 0) isPlayingTileConquests = true;
   if (timelapse === 1) isPlayingTradeRoute = true;
-  requestAnimationFrame(playLoop);
+  if (!isPlayingTileConquests && !isPlayingTradeRoute)
+    requestAnimationFrame(playLoop);
 }
 
 function playTileConquestFrame(time: number) {
@@ -291,7 +300,7 @@ function playTileConquestFrame(time: number) {
   }
 }
 
-function playTradeRouteFrame(time: number) {
+async function playTradeRouteFrame(time: number) {
   if (time - lastTradeRouteFrameTime >= 1000 / 30) {
     if (frame[1] >= totalFrames - 1) {
       stopVideo(1);
@@ -301,15 +310,15 @@ function playTradeRouteFrame(time: number) {
     frame[1]++;
 
     frameSliders[1].value = String(frame[1]);
-    drawFrame(frame[1], 1);
+    await drawFrame(frame[1], 1);
 
     lastTradeRouteFrameTime = time;
   }
 }
 
-function playLoop(time: number): void {
+async function playLoop(time: number): Promise<void> {
   if (isPlayingTileConquests) playTileConquestFrame(time);
-  if (isPlayingTradeRoute) playTradeRouteFrame(time);
+  if (isPlayingTradeRoute) await playTradeRouteFrame(time);
 
   if (isPlayingTileConquests || isPlayingTradeRoute)
     requestAnimationFrame(playLoop);
@@ -324,20 +333,23 @@ frameSliders[0].addEventListener("input", () => {
   frame[0] = Number(frameSliders[0].value);
   drawFrame(frame[0]);
 });
-frameSliders[1].addEventListener("input", () => {
+frameSliders[1].addEventListener("input", async () => {
   frame[1] = Number(frameSliders[1].value);
-  drawFrame(frame[1], 1);
+  await drawFrame(frame[1], 1);
 });
 
 start(window.gameId);
-
-function setupButtons(buttonName: string, func: (timelapse: number) => void) {
+function setupButtons(
+  buttonName: string,
+  func: (timelapse: number) => void | Promise<void>,
+) {
   const buttons = document.querySelectorAll<HTMLButtonElement>(
     `[name="${buttonName}"]`,
   );
+
   for (let i = 0; i < buttons.length; i++) {
-    buttons[i].onclick = () => {
-      func(i);
+    buttons[i].onclick = async () => {
+      await func(i);
     };
   }
 }
