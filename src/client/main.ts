@@ -244,12 +244,13 @@ function loadGame(data: {
 async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
   let frameData: ArrayBuffer | Uint8Array | undefined;
   if (timelapse === 0) {
-    frameData = await tileConquredTimelapse.drawFrame(index);
     borderCtx?.clearRect(0, 0, width, height);
     if (borderCtx) borderCtx.fillStyle = "black";
     for (const tile of borderFrames[index]) {
       borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
     }
+
+    frameData = await tileConquredTimelapse.drawFrame(index);
   } else if (timelapse === 1) {
     frameData = await tradeRouteTimelapse.drawFrame(index);
   }
