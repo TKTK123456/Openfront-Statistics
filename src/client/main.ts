@@ -1,4 +1,4 @@
-import { binaryToMaps } from "src/shared/util";
+import { binaryToMaps, interpolateFrames } from "src/shared/util";
 import { Timelapse } from "./timelapses";
 
 const frameCache = new Map<number, Uint8Array>();
@@ -140,7 +140,7 @@ async function start(gameID: string): Promise<void> {
           payload.byteOffset + payload.byteLength,
         );
         const uint32 = new Uint32Array(isolatedBuffer);
-        tradeShipRoutesTime = binaryToMaps(uint32);
+        tradeShipRoutesTime = interpolateFrames(binaryToMaps(uint32), 6);
         tradeReady = true;
         tryCreateTimelapse();
       } else {
@@ -235,7 +235,7 @@ function loadGame(data: {
 }
 
 async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
-  let frameData;
+  let frameData: ArrayBuffer | Uint8Array | undefined;
   if (timelapse === 0) {
     frameData = frameCache.get(index);
   } else if (timelapse === 1) {
@@ -272,16 +272,15 @@ let lastTradeRouteFrameTime = 0;
 
 function playVideo(timelapse: number = 0): void {
   if (
-    (isPlayingTileConquests && timelapse === 0 && loadedFrames < totalFrames) ||
-    (isPlayingTradeRoute && timelapse === 1 && !tradeRouteTimelapse.ready)
+    (timelapse === 0 && (loadedFrames < totalFrames || isPlayingTileConquests)) ||
+    (timelapse === 1 && (!tradeRouteTimelapse.ready || isPlayingTradeRoute))
   ) {
     return;
   }
-
+  const wasPlayingAny = isPlayingTileConquests || isPlayingTradeRoute;
   if (timelapse === 0) isPlayingTileConquests = true;
   if (timelapse === 1) isPlayingTradeRoute = true;
-  if (!isPlayingTileConquests && !isPlayingTradeRoute)
-    requestAnimationFrame(playLoop);
+  if (!wasPlayingAny) requestAnimationFrame(playLoop);
 }
 
 function playTileConquestFrame(time: number) {
@@ -349,7 +348,7 @@ function setupButtons(
 
   for (let i = 0; i < buttons.length; i++) {
     buttons[i].onclick = async () => {
-      await func(i);
+      /*await*/ func(i);
     };
   }
 }

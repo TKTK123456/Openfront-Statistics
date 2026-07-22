@@ -10,8 +10,8 @@ ctx.onmessage = (e) => {
 
   const pixels = createHeatmap(
     frame,
-    height,
     width,
+    height,
     10,
     100,
     null,
