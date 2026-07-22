@@ -16,6 +16,7 @@ ctx.onmessage = (e) => {
     100,
     null,
     heatmapCreator.defaultGradient,
+    0.01,
   );
 
   const png = new PNG({

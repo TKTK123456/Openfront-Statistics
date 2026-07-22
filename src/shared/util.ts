@@ -123,3 +123,67 @@ export function binaryToMap(data: Uint32Array): Map<number, number> {
 
   return map;
 }
+
+export function combineBuffer(buffers: Buffer[]): Buffer {
+  let totalLength = 0;
+  for (const buf of buffers) {
+    totalLength += 4 + buf.length; // 4 bytes for length prefix + data length
+  }
+
+  const combinedBuffer = Buffer.alloc(totalLength);
+  let offset = 0;
+
+  for (const buf of buffers) {
+    combinedBuffer.writeUInt32BE(buf.length, offset); // Write 4-byte prefix
+    offset += 4;
+    buf.copy(combinedBuffer, offset); // Copy the actual buffer data
+    offset += buf.length;
+  }
+  return combinedBuffer;
+}
+export function decodeCombinedBuffer(data: Uint8Array): Uint8Array[] {
+  const result: Uint8Array[] = [];
+  let readOffset = 0;
+
+  while (readOffset < data.length) {
+    // Read 4-byte big-endian length prefix
+    const length =
+      (data[readOffset] << 24) |
+      (data[readOffset + 1] << 16) |
+      (data[readOffset + 2] << 8) |
+      data[readOffset + 3];
+
+    readOffset += 4;
+
+    // Extract data
+    const part = data.subarray(readOffset, readOffset + length);
+    result.push(part);
+
+    readOffset += length;
+  }
+
+  return result;
+}
+
+export class TileRefs {
+  private readonly refToX: number[];
+  private readonly refToY: number[];
+  constructor(width: number, height: number) {
+    let ref = 0;
+    this.refToX = new Array(width * height);
+    this.refToY = new Array(width * height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        this.refToX[ref] = x;
+        this.refToY[ref] = y;
+        ref++;
+      }
+    }
+  }
+  x(tile: number) {
+    return this.refToX[tile];
+  }
+  y(tile: number) {
+    return this.refToY[tile];
+  }
+}

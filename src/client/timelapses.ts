@@ -7,8 +7,11 @@ type RenderResult = {
 
 type Job = {
   idx: number;
+  timelapseIdx: number;
   resolve: (img: ArrayBuffer) => void;
   reject: (err: Error) => void;
+  width: number;
+  height: number;
 };
 
 type WorkerState = {
@@ -19,12 +22,8 @@ type WorkerState = {
 
 class TimelapseDB {
   private db!: IDBDatabase;
-  private dbName: string;
-  private readonly storeName = "frames";
-
-  constructor(name: string) {
-    this.dbName = name;
-  }
+  private readonly dbName = "timelapses";
+  private storeName = "frames";
 
   async init() {
     if (this.db) return;
@@ -44,10 +43,13 @@ class TimelapseDB {
 
       request.onsuccess = () => resolve(request.result);
     });
-    this.db.transaction(this.storeName, "readwrite").objectStore(this.storeName).clear()
+    this.db
+      .transaction(this.storeName, "readwrite")
+      .objectStore(this.storeName)
+      .clear();
   }
 
-  async put(key: number, value: ArrayBuffer) {
+  async put(key: string, value: ArrayBuffer) {
     await this.init();
 
     return new Promise<void>((resolve, reject) => {
@@ -61,7 +63,7 @@ class TimelapseDB {
     });
   }
 
-  async get(key: number): Promise<ArrayBuffer | undefined> {
+  async get(key: string): Promise<ArrayBuffer | undefined> {
     await this.init();
 
     return new Promise((resolve, reject) => {
@@ -75,7 +77,7 @@ class TimelapseDB {
     });
   }
 
-  async delete(key: number) {
+  async delete(key: string) {
     await this.init();
 
     return new Promise<void>((resolve, reject) => {
@@ -98,19 +100,26 @@ class TimelapseDB {
       tx.onerror = () => reject(tx.error);
     });
   }
+  static createKey(timelapseIdx: number, idx: number) {
+    return `${timelapseIdx}:${idx}`;
+  }
 }
 
 export class Timelapse {
+  static Cache: TimelapseDB;
   private cache: TimelapseDB;
   static numberOfTimelapses = 0;
   private id: number;
-  private workers: WorkerState[] = [];
-  private queue: Job[] = [];
+  static totalWorkerCount: number = 0;
+  static Workers: WorkerState[] = [];
+  private workers: WorkerState[];
+  static Queue: Job[] = [];
+  private queue: Job[];
 
   private width: number;
   private height: number;
-  private frames: Map<number, number>[];
-
+  static Frames: Map<number, number>[][] = [];
+  private frames: Map<number, number>[][];
   /** Resolves when every frame has been rendered */
   public ready: boolean = false;
 
@@ -120,12 +129,20 @@ export class Timelapse {
     frames: Map<number, number>[],
     workerCount = navigator.hardwareConcurrency ?? 4,
   ) {
+    this.workers = Timelapse.Workers;
+    this.queue = Timelapse.Queue;
     this.id = Timelapse.numberOfTimelapses++;
     this.width = width;
     this.height = height;
-    this.frames = frames
-    this.cache = new TimelapseDB(`${this.id}`);
-    for (let i = 0; i < workerCount; i++) {
+    this.frames = Timelapse.Frames;
+    this.frames.push(frames);
+    this.cache = Timelapse.Cache ?? new TimelapseDB();
+    Timelapse.Cache = this.cache;
+    for (
+      ;
+      Timelapse.totalWorkerCount < workerCount;
+      Timelapse.totalWorkerCount++
+    ) {
       this.createWorker();
     }
 
@@ -153,18 +170,21 @@ export class Timelapse {
       state.busy = false;
 
       if (!job) {
-        this.dispatch();
+        Timelapse.dispatch();
         return;
       }
 
       try {
-    await this.cache.put(job.idx, e.data.buffer);
-    job.resolve(e.data.buffer);
-  } catch (err) {
-    job.reject(err instanceof Error ? err : new Error(String(err)));
-  }
+        await this.cache.put(
+          TimelapseDB.createKey(job.timelapseIdx, job.idx),
+          e.data.buffer,
+        );
+        job.resolve(e.data.buffer);
+      } catch (err) {
+        job.reject(err instanceof Error ? err : new Error(String(err)));
+      }
 
-      this.dispatch();
+      Timelapse.dispatch();
     };
 
     worker.onerror = (err) => {
@@ -177,7 +197,7 @@ export class Timelapse {
         job.reject(new Error(err.message));
       }
 
-      this.dispatch();
+      Timelapse.dispatch();
     };
 
     this.workers.push(state);
@@ -187,10 +207,9 @@ export class Timelapse {
    * Render every frame and wait until all are cached
    */
   private async preloadAll() {
-    await this.cache.clear();
     const promises: Promise<ArrayBuffer>[] = [];
 
-    for (let i = 0; i < this.frames.length; i++) {
+    for (let i = 0; i < this.frames[this.id].length; i++) {
       promises.push(this.render(i));
     }
 
@@ -202,7 +221,7 @@ export class Timelapse {
    * Instant after preload finishes
    */
   async drawFrame(idx: number): Promise<ArrayBuffer | undefined> {
-    const frame = await this.cache.get(idx);
+    const frame = await this.cache.get(TimelapseDB.createKey(this.id, idx));
 
     if (!frame || frame === undefined) {
       throw new Error(
@@ -216,35 +235,37 @@ export class Timelapse {
     return new Promise((resolve, reject) => {
       this.queue.push({
         idx,
+        timelapseIdx: this.id,
         resolve,
         reject,
+        height: this.height,
+        width: this.width,
       });
-
-      this.dispatch();
+      Timelapse.dispatch();
     });
   }
 
-  private dispatch() {
-    while (this.queue.length) {
-      const state = this.workers.find((w) => !w.busy);
+  static dispatch() {
+    while (this.Queue.length) {
+      const state = this.Workers.find((w) => !w.busy);
 
       if (!state) return;
 
-      const job = this.queue.shift()!;
+      const job = this.Queue.shift()!;
 
       state.busy = true;
       state.job = job;
 
       state.worker.postMessage({
         idx: job.idx,
-        frame: this.frames[job.idx],
-        width: this.width,
-        height: this.height,
+        frame: this.Frames[job.timelapseIdx][job.idx],
+        width: job.width,
+        height: job.height,
       });
     }
   }
 
   get frameCount() {
-    return this.frames.length;
+    return this.frames[this.id].length;
   }
 }

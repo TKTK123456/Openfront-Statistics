@@ -82,7 +82,13 @@
 
       .map-stack canvas {
         position: relative;
+        z-index: 2;
+        background: transparent;
+      }
+      .map-stack .lowerCanvas {
+        position: absolute;
         z-index: 1;
+        inset: 0;
         background: transparent;
       }
     </style>
@@ -123,7 +129,11 @@
       <div class="card">
         <h2>Timelapses</h2>
         <h3>Tiles conquered</h3>
-        <canvas id="map"></canvas>
+        <div class="map-stack">
+          <img class="background" />
+          <canvas id="borderMap" class="lowerCanvas"></canvas>
+          <canvas id="map"></canvas>
+        </div>
 
         <div
           style="
@@ -152,7 +162,7 @@
         <h3>Trade routes</h3>
 
         <div class="map-stack">
-          <img id="tradeRouteBackground" />
+          <img class="background" />
           <canvas id="tradeRouteMap"></canvas>
         </div>
         <div

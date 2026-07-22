@@ -11,7 +11,7 @@ import { GameHanlderWorkerResult, runGame } from "./runGame";
 import { heatmapCreator } from "src/visualization/heatmap";
 import { createImageBuffer, sendBuffer } from "src/util/util";
 import { createCombinedTimelapse } from "src/visualization/timelapse";
-import { mapsToBinary } from "src/shared/util";
+import { combineBuffer, mapsToBinary } from "src/shared/util";
 
 const vite = await createServer({
   configFile: path.resolve("vite.config.ts"),
@@ -36,10 +36,6 @@ export interface Game {
 //Connect to a DB so that node doesn't run out of memory or whatever
 
 const games: Map<string, Game> = new Map();
-
-const browserSrcDirs = [path.resolve("src/client"), path.resolve("src/shared")];
-
-const pathCatch: Map<string, string> = new Map();
 
 // Serve the page immediately.
 // The page will connect to the websocket to request the data.
@@ -85,24 +81,27 @@ export async function gameProcessor(
 
   if (game.background !== undefined) {
     sendBuffer(ws, 5, createImageBuffer(imgConfig, game.background));
-    const uint32 = mapsToBinary(game.tradeShipRoutesTime);
+    const tradeShipRoutesTimeUint32 = mapsToBinary(game.tradeShipRoutesTime);
 
-    const buffer = Buffer.from(
-      uint32.buffer,
-      uint32.byteOffset,
-      uint32.byteLength,
+    const tradeShipRoutesTimebuffer = Buffer.from(
+      tradeShipRoutesTimeUint32.buffer,
+      tradeShipRoutesTimeUint32.byteOffset,
+      tradeShipRoutesTimeUint32.byteLength,
     );
-    sendBuffer(ws, 4, buffer);
-    await createCombinedTimelapse({
-      out: ws,
-      width: game.width,
-      height: game.height,
-      background: game.background,
-      gradient: heatmapCreator.defaultGradient,
-      borderFrames: game.borderFrames,
-      dataFrames: game.conquestFrames,
-      wsType: "conquered",
-    });
+    sendBuffer(ws, 4, tradeShipRoutesTimebuffer);
+    const tileConquredTimeUnit32 = mapsToBinary(game.conquestFrames);
+    const tileConquredTimeBuffer = Buffer.from(
+      tileConquredTimeUnit32.buffer,
+      tileConquredTimeUnit32.byteOffset,
+      tileConquredTimeUnit32.byteLength,
+    );
+    sendBuffer(ws, 3, tileConquredTimeBuffer);
+    let borderFramesBuffer: Buffer[] = [];
+    for (let i = 0; i < game.borderFrames.length; i++) {
+      let buffer = Buffer.from(game.borderFrames[i].buffer);
+      borderFramesBuffer.push(buffer);
+    }
+    sendBuffer(ws, 6, combineBuffer(borderFramesBuffer));
   }
 }
 
