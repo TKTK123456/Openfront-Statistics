@@ -250,9 +250,17 @@ async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
       borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
     }
 
-    frameData = await tileConquredTimelapse.drawFrame(index);
+    frameData = await tileConquredTimelapse.drawFrame(index, (frameData) => {
+      if (index === frame[timelapse]) {
+        drawBufferToCanvas(frameData, timelapse);
+      }
+    });
   } else if (timelapse === 1) {
-    frameData = await tradeRouteTimelapse.drawFrame(index);
+    frameData = await tradeRouteTimelapse.drawFrame(index, (frameData) => {
+      if (index === frame[timelapse]) {
+        drawBufferToCanvas(frameData, timelapse);
+      }
+    });
   }
 
   if (frameData !== undefined) {

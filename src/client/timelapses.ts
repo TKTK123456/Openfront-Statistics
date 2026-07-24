@@ -231,17 +231,14 @@ export class Timelapse {
   /**
    * Instant after preload finishes
    */
-  drawFrame(
+  async drawFrame(
     idx: number,
     notRendered?: (value: ArrayBuffer) => void,
-  ): Promise<ArrayBuffer | undefined> | undefined {
-    const frame = this.cache.get(TimelapseDB.createKey(this.id, idx));
+  ): Promise<ArrayBuffer | undefined> {
+    const frame = await this.cache.get(TimelapseDB.createKey(this.id, idx));
 
     if (!frame || frame === undefined) {
-      console.log("hi1");
-      this.bringToFrontOfQueue(idx)?.then(() => {
-        console.log("hi");
-      });
+      if (notRendered !== undefined) this.bringToFrontOfQueue(idx)?.then(notRendered);
       return undefined;
     }
     return frame;
@@ -251,7 +248,7 @@ export class Timelapse {
     if (
       this.queue.findIndex(
         (j) => j.idx === idx && j.timelapseId === this.id,
-      ) === -1
+      ) !== -1
     ) {
       const out = this.bringToFrontOfQueue(idx);
       if (out !== undefined) return out;
