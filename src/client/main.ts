@@ -305,6 +305,7 @@ async function drawFrame(index: number): Promise<void> {
     }
     drawBorder(index);
     await drawBufferToCanvas(tradeFrameData.buffer, 1);
+    if (!shouldContinue()) return;
     await drawBufferToCanvas(tileFrameData.buffer, 0);
   }
 }
