@@ -1,23 +1,26 @@
 /// <reference lib="webworker" />
 
-import { createHeatmap, heatmapCreator } from "src/visualization/heatmap";
+import {
+  createHeatmap,
+  Gradient,
+  heatmapCreator,
+} from "src/visualization/heatmap";
 import { PNG } from "pngjs/browser";
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
 ctx.onmessage = (e) => {
   const { idx, frame, width, height } = e.data;
-
-  const pixels = createHeatmap(
-    frame,
+  let gradient = heatmapCreator.defaultGradient;
+  const pixels = createHeatmap({
+    tileFrequencies: frame,
     width,
     height,
-    10,
-    100,
-    null,
-    heatmapCreator.defaultGradient,
-    0.01,
-  );
+    radius: 10,
+    radiusSq: 100,
+    gradient,
+    base: null,
+  });
 
   const png = new PNG({
     width,

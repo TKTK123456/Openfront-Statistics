@@ -43,15 +43,15 @@ function render(
     base[idx + 3] = 255;
   }
 
-  return createHeatmap(
-    { tiles, counts },
+  return createHeatmap({
+    tileFrequencies: { tiles, counts },
     width,
     height,
     radius,
     radiusSq,
-    base,
     gradient,
-  );
+    base,
+  });
 }
 
 parentPort?.on("message", (m: RenderMessage) => {

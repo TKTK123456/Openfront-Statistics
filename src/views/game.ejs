@@ -81,15 +81,14 @@
       }
 
       .map-stack canvas {
-        position: relative;
-        z-index: 2;
-        background: transparent;
-      }
-      .map-stack .lowerCanvas {
         position: absolute;
         z-index: 1;
         inset: 0;
         background: transparent;
+      }
+
+      .map-stack canvas:last-of-type {
+        position: relative;
       }
     </style>
   </head>
@@ -131,7 +130,7 @@
         <h3>Tiles conquered</h3>
         <div class="map-stack">
           <img class="background" />
-          <canvas id="borderMap" class="lowerCanvas"></canvas>
+          <canvas id="borderMap"></canvas>
           <canvas id="map"></canvas>
         </div>
 

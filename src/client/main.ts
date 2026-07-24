@@ -122,19 +122,19 @@ async function start(gameID: string): Promise<void> {
         switch (type) {
           case 4:
             tradeShipRoutesTime = interpolateFrames(binaryToMaps(uint32), 6);
-            tradeRouteTimelapse = new Timelapse(
+            tradeRouteTimelapse = new Timelapse({
               width,
               height,
-              tradeShipRoutesTime,
-            );
+              frames: tradeShipRoutesTime,
+            });
             break;
           case 3:
             tileConquredTime = binaryToMaps(uint32);
-            tileConquredTimelapse = new Timelapse(
+            tileConquredTimelapse = new Timelapse({
               width,
               height,
-              tileConquredTime,
-            );
+              frames: tileConquredTime,
+            });
         }
       } else if (type === 6) {
         const bytes = new Uint8Array(data.slice(1));

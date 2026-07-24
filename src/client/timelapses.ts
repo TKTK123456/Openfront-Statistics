@@ -7,7 +7,7 @@ type RenderResult = {
 
 type Job = {
   idx: number;
-  timelapseIdx: number;
+  timelapseId: number;
   resolve: (img: ArrayBuffer) => void;
   reject: (err: Error) => void;
   width: number;
@@ -100,8 +100,8 @@ class TimelapseDB {
       tx.onerror = () => reject(tx.error);
     });
   }
-  static createKey(timelapseIdx: number, idx: number) {
-    return `${timelapseIdx}:${idx}`;
+  static createKey(timelapseId: number, idx: number) {
+    return `${timelapseId}:${idx}`;
   }
 }
 
@@ -122,18 +122,28 @@ export class Timelapse {
   private frames: Map<number, number>[][];
   /** Resolves when every frame has been rendered */
   public ready: boolean = false;
+  public onFinish: (self: Timelapse) => void;
 
-  constructor(
-    width: number,
-    height: number,
-    frames: Map<number, number>[],
-    workerCount = navigator.hardwareConcurrency ?? 4,
-  ) {
+  constructor(options: {
+    width: number;
+    height: number;
+    frames: Map<number, number>[];
+    workerCount?: number;
+    onFinish?: (self: Timelapse) => void;
+  }) {
+    let { width, height, frames, workerCount, onFinish } = options;
+    if (workerCount === undefined) {
+      workerCount = navigator.hardwareConcurrency ?? 4;
+    }
+    if (onFinish === undefined) {
+      onFinish = (self: Timelapse) => {};
+    }
     this.workers = Timelapse.Workers;
     this.queue = Timelapse.Queue;
     this.id = Timelapse.numberOfTimelapses++;
     this.width = width;
     this.height = height;
+    this.onFinish = onFinish;
     this.frames = Timelapse.Frames;
     this.frames.push(frames);
     this.cache = Timelapse.Cache ?? new TimelapseDB();
@@ -176,7 +186,7 @@ export class Timelapse {
 
       try {
         await this.cache.put(
-          TimelapseDB.createKey(job.timelapseIdx, job.idx),
+          TimelapseDB.createKey(job.timelapseId, job.idx),
           e.data.buffer,
         );
         job.resolve(e.data.buffer);
@@ -215,27 +225,41 @@ export class Timelapse {
 
     await Promise.all(promises);
     this.ready = true;
+    this.onFinish(this);
   }
 
   /**
    * Instant after preload finishes
    */
-  async drawFrame(idx: number): Promise<ArrayBuffer | undefined> {
-    const frame = await this.cache.get(TimelapseDB.createKey(this.id, idx));
+  drawFrame(
+    idx: number,
+    notRendered?: (value: ArrayBuffer) => void,
+  ): Promise<ArrayBuffer | undefined> | undefined {
+    const frame = this.cache.get(TimelapseDB.createKey(this.id, idx));
 
     if (!frame || frame === undefined) {
-      throw new Error(
-        `Frame ${idx} not loaded yet. Await timelapse.ready first.`,
-      );
+      console.log("hi1");
+      this.bringToFrontOfQueue(idx)?.then(() => {
+        console.log("hi");
+      });
+      return undefined;
     }
     return frame;
   }
 
   private render(idx: number): Promise<ArrayBuffer> {
+    if (
+      this.queue.findIndex(
+        (j) => j.idx === idx && j.timelapseId === this.id,
+      ) === -1
+    ) {
+      const out = this.bringToFrontOfQueue(idx);
+      if (out !== undefined) return out;
+    }
     return new Promise((resolve, reject) => {
       this.queue.push({
         idx,
-        timelapseIdx: this.id,
+        timelapseId: this.id,
         resolve,
         reject,
         height: this.height,
@@ -258,13 +282,33 @@ export class Timelapse {
 
       state.worker.postMessage({
         idx: job.idx,
-        frame: this.Frames[job.timelapseIdx][job.idx],
+        frame: this.Frames[job.timelapseId][job.idx],
         width: job.width,
         height: job.height,
       });
     }
   }
-
+  public bringToFrontOfQueue(idx: number): Promise<ArrayBuffer> | undefined {
+    const jobIdx = this.queue.findIndex(
+      (j) => j.idx === idx && j.timelapseId === this.id,
+    );
+    if (jobIdx === -1) return;
+    const [job] = this.queue.splice(jobIdx, 1);
+    return new Promise((resolve, reject) => {
+      const oldResolve = job.resolve;
+      job.resolve = (img: ArrayBuffer) => {
+        resolve(img);
+        oldResolve(img);
+      };
+      const oldReject = job.reject;
+      job.reject = (err: Error) => {
+        reject(err);
+        oldReject(err);
+      };
+      this.queue.unshift(job);
+      Timelapse.dispatch();
+    });
+  }
   get frameCount() {
     return this.frames[this.id].length;
   }

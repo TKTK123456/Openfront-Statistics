@@ -1,6 +1,7 @@
 import { Game } from "../../OpenFrontIO/src/core/game/Game";
 import { MapData } from "../../OpenFrontIO/src/core/game/GameMapLoader";
 import { buildTerrainRGBA } from "../../OpenFrontIO/src/client/render/gl/utils/ColorUtils";
+
 export interface GradientStop {
   stop: number;
   color: [number, number, number, number];
@@ -9,6 +10,12 @@ export interface heatmapConfig {
   radius?: number;
   frequencieMultiplier?: number;
 }
+/**
+ * A color gradient represented as an ordered array of color stops.
+ * Each stop specifies a normalized position (0–1) and an RGBA color.
+ * Colors for intermediate values are produced by linearly interpolating
+ * between the surrounding stops.
+ */
 export type Gradient = GradientStop[];
 export class heatmapCreator {
   private radius = 10;
@@ -25,13 +32,7 @@ export class heatmapCreator {
     { stop: 0.7, color: [0, 255, 0, 226.5] }, // lime
     { stop: 1, color: [255, 0, 0, 255] }, // red
   ];
-  public gradient: Gradient = [
-    { stop: 0, color: [10, 20, 90, 160] }, // dark blue
-    { stop: 0.3, color: [0, 0, 255, 188.5] }, // blue
-    { stop: 0.5, color: [0, 255, 255, 207.5] }, // cyan
-    { stop: 0.7, color: [0, 255, 0, 226.5] }, // lime
-    { stop: 1, color: [255, 0, 0, 255] }, // red
-  ];
+  public gradient: Gradient;
   constructor(map: MapData, game: Game, compact: boolean, gradient?: Gradient) {
     this.game = game;
     this.width = game.width();
@@ -77,16 +78,16 @@ export class heatmapCreator {
     const height = this.height;
     const background = await this.mapBackground();
     if (!background) return;
-    return createHeatmap(
+    return createHeatmap({
       tileFrequencies,
       width,
       height,
       radius,
       radiusSq,
-      background,
-      this.gradient,
+      gradient: this.gradient,
+      base: background,
       frequencieMultiplier,
-    );
+    });
   }
 }
 export function lerp(a: number, b: number, t: number) {
@@ -116,18 +117,31 @@ export function interpolateColor(
 
   return [r, g, b, a];
 }
-export function createHeatmap(
+export function createHeatmap(options: {
   tileFrequencies:
     | Map<number, number>
-    | { tiles: Int32Array; counts: Float64Array },
-  width: number,
-  height: number,
-  radius: number,
-  radiusSq: number,
-  base: Uint8ClampedArray | null,
-  gradient: Gradient,
-  frequencieMultiplier: number = 0.01,
-): Uint8ClampedArray {
+    | { tiles: Int32Array; counts: Float64Array };
+  width: number;
+  height: number;
+  radius: number;
+  radiusSq: number;
+  gradient: Gradient;
+  base: Uint8ClampedArray | null;
+  frequencieMultiplier?: number;
+}): Uint8ClampedArray {
+  let {
+    tileFrequencies,
+    width,
+    height,
+    radius,
+    radiusSq,
+    gradient,
+    base,
+    frequencieMultiplier,
+  } = options;
+  if (frequencieMultiplier === undefined) {
+    frequencieMultiplier = 0.01;
+  }
   let heatAlpha = new Float32Array(width * height);
   let maxHeat = 0;
   if (tileFrequencies instanceof Map) {
@@ -172,7 +186,6 @@ export function createHeatmap(
 
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
-
     const alpha = maxHeat > 0 ? Math.log2(heatAlpha[i] + 1) / denom : 0;
 
     const [r, g, b, a] = interpolateColor(alpha, gradient);
@@ -181,7 +194,9 @@ export function createHeatmap(
     let frameBase: number[];
     if (base !== null)
       frameBase = [base[idx], base[idx + 1], base[idx + 2], 255];
-    else frameBase = [0, 0, 0, a];
+    else {
+      frameBase = [0, 0, 0, a];
+    }
     if (ha === 0) {
       out[idx] = frameBase[0];
       out[idx + 1] = frameBase[1];
