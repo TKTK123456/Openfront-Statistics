@@ -12,7 +12,7 @@ const ctx = self as unknown as DedicatedWorkerGlobalScope;
 ctx.onmessage = (e) => {
   const { idx, frame, width, height } = e.data;
   let gradient = heatmapCreator.defaultGradient;
-  const pixels = createHeatmap({
+  const { heatmap: pixels, mask } = createHeatmap({
     tileFrequencies: frame,
     width,
     height,
@@ -20,6 +20,7 @@ ctx.onmessage = (e) => {
     radiusSq: 100,
     gradient,
     base: null,
+    noFinalLayer: true,
   });
 
   const png = new PNG({
@@ -41,7 +42,8 @@ ctx.onmessage = (e) => {
     {
       idx,
       buffer: arrayBuffer,
+      mask: mask.buffer,
     },
-    [arrayBuffer],
+    [arrayBuffer, mask.buffer],
   );
 };

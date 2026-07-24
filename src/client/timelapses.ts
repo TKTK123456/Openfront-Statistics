@@ -3,12 +3,13 @@ import { interpolateFrames } from "src/shared/util";
 type RenderResult = {
   idx: number;
   buffer: ArrayBuffer;
+  mask: Uint8Array;
 };
 
 type Job = {
   idx: number;
   timelapseId: number;
-  resolve: (img: ArrayBuffer) => void;
+  resolve: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void;
   reject: (err: Error) => void;
   width: number;
   height: number;
@@ -49,7 +50,10 @@ class TimelapseDB {
       .clear();
   }
 
-  async put(key: string, value: ArrayBuffer) {
+  async put(
+    key: string,
+    value: { buffer: ArrayBuffer; mask: Uint8Array },
+  ) {
     await this.init();
 
     return new Promise<void>((resolve, reject) => {
@@ -63,7 +67,9 @@ class TimelapseDB {
     });
   }
 
-  async get(key: string): Promise<ArrayBuffer | undefined> {
+  async get(
+    key: string,
+  ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array } | undefined> {
     await this.init();
 
     return new Promise((resolve, reject) => {
@@ -185,11 +191,14 @@ export class Timelapse {
       }
 
       try {
-        await this.cache.put(
-          TimelapseDB.createKey(job.timelapseId, job.idx),
-          e.data.buffer,
-        );
-        job.resolve(e.data.buffer);
+        await this.cache.put(TimelapseDB.createKey(job.timelapseId, job.idx), {
+          buffer: e.data.buffer,
+          mask: e.data.mask,
+        });
+        job.resolve({
+          buffer: e.data.buffer,
+          mask: e.data.mask,
+        });
       } catch (err) {
         job.reject(err instanceof Error ? err : new Error(String(err)));
       }
@@ -217,7 +226,10 @@ export class Timelapse {
    * Render every frame and wait until all are cached
    */
   private async preloadAll() {
-    const promises: Promise<ArrayBuffer>[] = [];
+    const promises: Promise<{
+      buffer: ArrayBuffer;
+      mask: Uint8Array;
+    }>[] = [];
 
     for (let i = 0; i < this.frames[this.id].length; i++) {
       promises.push(this.render(i));
@@ -233,18 +245,24 @@ export class Timelapse {
    */
   async drawFrame(
     idx: number,
-    notRendered?: (value: ArrayBuffer) => void,
-  ): Promise<ArrayBuffer | undefined> {
+    notRendered?: (value: {
+      buffer: ArrayBuffer;
+      mask: Uint8Array;
+    }) => void,
+  ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array } | undefined> {
     const frame = await this.cache.get(TimelapseDB.createKey(this.id, idx));
 
     if (!frame || frame === undefined) {
-      if (notRendered !== undefined) this.bringToFrontOfQueue(idx)?.then(notRendered);
+      if (notRendered !== undefined)
+        this.bringToFrontOfQueue(idx)?.then(notRendered);
       return undefined;
     }
     return frame;
   }
 
-  private render(idx: number): Promise<ArrayBuffer> {
+  private render(
+    idx: number,
+  ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array }> {
     if (
       this.queue.findIndex(
         (j) => j.idx === idx && j.timelapseId === this.id,
@@ -285,7 +303,9 @@ export class Timelapse {
       });
     }
   }
-  public bringToFrontOfQueue(idx: number): Promise<ArrayBuffer> | undefined {
+  public bringToFrontOfQueue(
+    idx: number,
+  ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array }> | undefined {
     const jobIdx = this.queue.findIndex(
       (j) => j.idx === idx && j.timelapseId === this.id,
     );
@@ -293,7 +313,10 @@ export class Timelapse {
     const [job] = this.queue.splice(jobIdx, 1);
     return new Promise((resolve, reject) => {
       const oldResolve = job.resolve;
-      job.resolve = (img: ArrayBuffer) => {
+      job.resolve = (img: {
+        buffer: ArrayBuffer;
+        mask: Uint8Array;
+      }) => {
         resolve(img);
         oldResolve(img);
       };

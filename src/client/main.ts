@@ -50,25 +50,10 @@ let borderFrames: Int32Array[] = [];
 let tileRefs: TileRefs;
 
 function drawBufferToCanvas(
-  buffer: Uint8Array | ArrayBuffer | ImageBitmap,
+  buffer: ArrayBuffer,
   whichCanvas: number,
 ): Promise<void> {
   return new Promise((resolve) => {
-    if (buffer instanceof ImageBitmap) {
-      if (whichCanvas === 0) {
-        canvas.width = buffer.width;
-        canvas.height = buffer.height;
-        ctx.drawImage(buffer, 0, 0);
-      } else {
-        tradeCanvas.width = buffer.width;
-        tradeCanvas.height = buffer.height;
-        tradeCtx.drawImage(buffer, 0, 0);
-      }
-
-      resolve();
-      return;
-    }
-
     const blob = new Blob([buffer as BlobPart], {
       type: "image/png",
     });
@@ -242,7 +227,8 @@ function loadGame(data: {
 }
 
 async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
-  let frameData: ArrayBuffer | Uint8Array | undefined;
+  let frameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let mask: Uint8Array;
   if (timelapse === 0) {
     borderCtx?.clearRect(0, 0, width, height);
     if (borderCtx) borderCtx.fillStyle = "black";
@@ -250,21 +236,21 @@ async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
       borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
     }
 
-    frameData = await tileConquredTimelapse.drawFrame(index, (frameData) => {
+    frameData = await tileConquredTimelapse.drawFrame(index, () => {
       if (index === frame[timelapse]) {
-        drawBufferToCanvas(frameData, timelapse);
+        drawFrame(index, timelapse)
       }
     });
   } else if (timelapse === 1) {
-    frameData = await tradeRouteTimelapse.drawFrame(index, (frameData) => {
+    frameData = await tradeRouteTimelapse.drawFrame(index, () => {
       if (index === frame[timelapse]) {
-        drawBufferToCanvas(frameData, timelapse);
+        drawFrame(index, timelapse)
       }
     });
   }
 
   if (frameData !== undefined) {
-    await drawBufferToCanvas(frameData, timelapse);
+    await drawBufferToCanvas(frameData.buffer, timelapse);
   }
 }
 
