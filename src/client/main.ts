@@ -31,17 +31,16 @@ const bg = document.getElementsByClassName(
   "background",
 ) as HTMLCollectionOf<HTMLImageElement>;
 
-const frameSliders = [
-  document.getElementById("tileConqueredFrameSlider") as HTMLInputElement,
-  document.getElementById("tradeRouteFrameSlider") as HTMLInputElement,
-];
+const frameSlider = document.getElementById(
+  "tileConqueredFrameSlider",
+) as HTMLInputElement;
 
 let tradeRouteTimelapse: Timelapse;
 let tileConquredTimelapse: Timelapse;
 let width = 0;
 let height = 0;
 
-let frame = [0, 0];
+let frame = 0;
 let totalFrames = 0;
 
 let tradeShipRoutesTime: Map<number, number>[] = [];
@@ -222,127 +221,97 @@ function loadGame(data: {
 
   totalFrames = data.frameCount;
 
-  frameSliders.forEach((s) => (s.max = String(totalFrames - 1)));
-  frameSliders.forEach((s) => (s.value = "0"));
+  frameSlider.max = String(totalFrames - 1);
+  frameSlider.value = "0";
 }
 
-async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
+async function drawFrame(index: number): Promise<void> {
   let frameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
   let mask: Uint8Array;
-  if (timelapse === 0) {
-    borderCtx?.clearRect(0, 0, width, height);
-    if (borderCtx) borderCtx.fillStyle = "black";
-    for (const tile of borderFrames[index]) {
-      borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
-    }
-
-    frameData = await tileConquredTimelapse.drawFrame(index, () => {
-      if (index === frame[timelapse]) {
-        drawFrame(index, timelapse)
-      }
-    });
-  } else if (timelapse === 1) {
-    frameData = await tradeRouteTimelapse.drawFrame(index, () => {
-      if (index === frame[timelapse]) {
-        drawFrame(index, timelapse)
-      }
-    });
+  borderCtx?.clearRect(0, 0, width, height);
+  if (borderCtx) borderCtx.fillStyle = "black";
+  for (const tile of borderFrames[index]) {
+    borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
   }
+
+  frameData = await tileConquredTimelapse.drawFrame(index, () => {
+    if (index === frame) {
+      drawFrame(index);
+    }
+  });
+  if (frameData !== undefined) {
+    await drawBufferToCanvas(frameData.buffer, 0);
+  }
+  frameData = await tradeRouteTimelapse.drawFrame(index, () => {
+    if (index === frame) {
+      drawFrame(index);
+    }
+  });
 
   if (frameData !== undefined) {
-    await drawBufferToCanvas(frameData.buffer, timelapse);
+    await drawBufferToCanvas(frameData.buffer, 1);
   }
 }
 
-async function nextFrame(timelapse: number = 0): Promise<void> {
-  if (frame[timelapse] < totalFrames - 1) {
-    frame[timelapse]++;
+async function nextFrame(): Promise<void> {
+  if (frame < totalFrames - 1) {
+    frame++;
 
-    frameSliders[timelapse].value = String(frame[timelapse]);
-    drawFrame(frame[timelapse], timelapse);
+    frameSlider.value = String(frame);
+    drawFrame(frame);
   }
 }
 
-async function previousFrame(timelapse: number = 0): Promise<void> {
-  if (frame[timelapse] > 0) {
-    frame[timelapse]--;
+async function previousFrame(): Promise<void> {
+  if (frame > 0) {
+    frame--;
 
-    frameSliders[timelapse].value = String(frame[timelapse]);
-    await drawFrame(frame[timelapse], timelapse);
+    frameSlider.value = String(frame);
+    await drawFrame(frame);
   }
 }
 
-let isPlayingTileConquests = false;
-let isPlayingTradeRoute = false;
-let lastTileConquestFrameTime = 0;
-let lastTradeRouteFrameTime = 0;
+let isPlaying = false;
+let lastFrameTime = 0;
 
-function playVideo(timelapse: number = 0): void {
-  if (
-    (timelapse === 0 &&
-      (!tileConquredTimelapse.ready || isPlayingTileConquests)) ||
-    (timelapse === 1 && (!tradeRouteTimelapse.ready || isPlayingTradeRoute))
-  ) {
+function playVideo(): void {
+  if (!tileConquredTimelapse.ready || !tradeRouteTimelapse.ready || isPlaying) {
     return;
   }
-  const wasPlayingAny = isPlayingTileConquests || isPlayingTradeRoute;
-  if (timelapse === 0) isPlayingTileConquests = true;
-  if (timelapse === 1) isPlayingTradeRoute = true;
-  if (!wasPlayingAny) requestAnimationFrame(playLoop);
+  isPlaying = true;
+  requestAnimationFrame(playLoop);
 }
 
-async function playTileConquestFrame(time: number) {
-  if (time - lastTileConquestFrameTime >= 1000 / 30) {
-    if (frame[0] >= totalFrames - 1) {
+async function playFrame(time: number) {
+  if (time - lastFrameTime >= 1000 / 30) {
+    if (frame >= totalFrames - 1) {
       stopVideo();
       return;
     }
 
-    frame[0]++;
+    frame++;
 
-    frameSliders[0].value = String(frame[0]);
-    await drawFrame(frame[0]);
+    frameSlider.value = String(frame);
+    await drawFrame(frame);
 
-    lastTileConquestFrameTime = time;
-  }
-}
-
-async function playTradeRouteFrame(time: number) {
-  if (time - lastTradeRouteFrameTime >= 1000 / 30) {
-    if (frame[1] >= totalFrames - 1) {
-      stopVideo(1);
-      return;
-    }
-
-    frame[1]++;
-
-    frameSliders[1].value = String(frame[1]);
-    await drawFrame(frame[1], 1);
-
-    lastTradeRouteFrameTime = time;
+    lastFrameTime = time;
   }
 }
 
 async function playLoop(time: number): Promise<void> {
-  if (isPlayingTileConquests) await playTileConquestFrame(time);
-  if (isPlayingTradeRoute) await playTradeRouteFrame(time);
-
-  if (isPlayingTileConquests || isPlayingTradeRoute)
+  if (isPlaying) {
+    await playFrame(time);
     requestAnimationFrame(playLoop);
+  }
 }
 
-function stopVideo(timelapse: number = 0): void {
-  if (timelapse === 0) isPlayingTileConquests = false;
-  if (timelapse === 1) isPlayingTradeRoute = false;
+function stopVideo(): void {
+  isPlaying = false;
 }
 
-frameSliders[0].addEventListener("input", () => {
-  frame[0] = Number(frameSliders[0].value);
-  drawFrame(frame[0]);
-});
-frameSliders[1].addEventListener("input", async () => {
-  frame[1] = Number(frameSliders[1].value);
-  await drawFrame(frame[1], 1);
+frameSlider.addEventListener("input", () => {
+  frame = Number(frameSlider.value);
+  drawFrame(frame);
 });
 
 start(window.gameId);

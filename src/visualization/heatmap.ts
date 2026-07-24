@@ -155,9 +155,7 @@ export function createHeatmap(options: {
   base: Uint8ClampedArray | null;
   frequencieMultiplier?: number;
   noFinalLayer?: boolean;
-}):
-  | Uint8ClampedArray
-  | { heatmap: Uint8ClampedArray; mask: Uint8Array } {
+}): Uint8ClampedArray | { heatmap: Uint8ClampedArray; mask: Uint8Array } {
   let {
     tileFrequencies,
     width,
@@ -212,14 +210,14 @@ export function createHeatmap(options: {
   const out = new Uint8ClampedArray(width * height * 4);
 
   const denom = maxHeat > 0 ? Math.log2(maxHeat + 1) : 0;
-  const mask = new Uint8Array(Math.ceil(width * height / 8));
+  const mask = new Uint8Array(Math.ceil((width * height) / 8));
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
     if (noFinalLayer && heatAlpha[i] === 0) {
       const byte = i >> 3;
-    const bit = i & 7;
+      const bit = i & 7;
 
-    mask[byte] |= 1 << bit;
+      mask[byte] |= 1 << bit;
       out[idx] = 0;
       out[idx + 1] = 0;
       out[idx + 2] = 0;

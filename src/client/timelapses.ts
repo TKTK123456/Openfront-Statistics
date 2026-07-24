@@ -50,10 +50,7 @@ class TimelapseDB {
       .clear();
   }
 
-  async put(
-    key: string,
-    value: { buffer: ArrayBuffer; mask: Uint8Array },
-  ) {
+  async put(key: string, value: { buffer: ArrayBuffer; mask: Uint8Array }) {
     await this.init();
 
     return new Promise<void>((resolve, reject) => {
@@ -245,10 +242,7 @@ export class Timelapse {
    */
   async drawFrame(
     idx: number,
-    notRendered?: (value: {
-      buffer: ArrayBuffer;
-      mask: Uint8Array;
-    }) => void,
+    notRendered?: (value: { buffer: ArrayBuffer; mask: Uint8Array }) => void,
   ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array } | undefined> {
     const frame = await this.cache.get(TimelapseDB.createKey(this.id, idx));
 
@@ -313,10 +307,7 @@ export class Timelapse {
     const [job] = this.queue.splice(jobIdx, 1);
     return new Promise((resolve, reject) => {
       const oldResolve = job.resolve;
-      job.resolve = (img: {
-        buffer: ArrayBuffer;
-        mask: Uint8Array;
-      }) => {
+      job.resolve = (img: { buffer: ArrayBuffer; mask: Uint8Array }) => {
         resolve(img);
         oldResolve(img);
       };
