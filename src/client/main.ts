@@ -5,6 +5,7 @@ import {
   TileRefs,
 } from "src/shared/util";
 import { Timelapse } from "./timelapses";
+import { heatmapCreator } from "src/visualization/heatmap";
 
 const frameCache = new Map<number, Uint8Array>();
 
@@ -21,8 +22,9 @@ const pirating = document.getElementById("pirating") as HTMLImageElement;
 const canvas = document.getElementById("map") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 const borderCanvas = document.getElementById("borderMap") as HTMLCanvasElement;
-const borderCtx = borderCanvas.getContext("2d");
-
+const borderCtx = borderCanvas.getContext("2d")!;
+const maskCanvas = document.getElementById("mask") as HTMLCanvasElement;
+const maskCtx = maskCanvas.getContext("2d")!;
 const tradeCanvas = document.getElementById(
   "tradeRouteMap",
 ) as HTMLCanvasElement;
@@ -31,9 +33,7 @@ const bg = document.getElementsByClassName(
   "background",
 ) as HTMLCollectionOf<HTMLImageElement>;
 
-const frameSlider = document.getElementById(
-  "tileConqueredFrameSlider",
-) as HTMLInputElement;
+const frameSlider = document.getElementById("frameSlider") as HTMLInputElement;
 
 let tradeRouteTimelapse: Timelapse;
 let tileConquredTimelapse: Timelapse;
@@ -64,10 +64,12 @@ function drawBufferToCanvas(
       if (whichCanvas === 0) {
         canvas.width = img.width;
         canvas.height = img.height;
+        ctx.clearRect(0, 0, img.width, img.height);
         ctx.drawImage(img, 0, 0);
       } else {
         tradeCanvas.width = img.width;
         tradeCanvas.height = img.height;
+        tradeCtx.clearRect(0, 0, img.width, img.height);
         tradeCtx.drawImage(img, 0, 0);
       }
 
@@ -200,7 +202,8 @@ async function start(gameID: string): Promise<void> {
     }
   };
 }
-
+let borderImage: ImageData;
+let maskImage: ImageData;
 function loadGame(data: {
   width: number;
   height: number;
@@ -218,38 +221,91 @@ function loadGame(data: {
   borderCanvas.height = height;
   tradeCanvas.width = width;
   tradeCanvas.height = height;
-
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  borderImage = borderCtx.createImageData(width, height);
+  maskImage = maskCtx.createImageData(width, height);
   totalFrames = data.frameCount;
 
   frameSlider.max = String(totalFrames - 1);
   frameSlider.value = "0";
 }
 
-async function drawFrame(index: number): Promise<void> {
-  let frameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
-  let mask: Uint8Array;
-  borderCtx?.clearRect(0, 0, width, height);
-  if (borderCtx) borderCtx.fillStyle = "black";
+function drawBorder(index: number) {
+  const data = borderImage.data;
+  data.fill(0);
+
   for (const tile of borderFrames[index]) {
-    borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
+    const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+    data[i + 3] = 255;
   }
 
-  frameData = await tileConquredTimelapse.drawFrame(index, () => {
-    if (index === frame) {
-      drawFrame(index);
-    }
-  });
-  if (frameData !== undefined) {
-    await drawBufferToCanvas(frameData.buffer, 0);
-  }
-  frameData = await tradeRouteTimelapse.drawFrame(index, () => {
-    if (index === frame) {
-      drawFrame(index);
-    }
-  });
+  borderCtx.putImageData(borderImage, 0, 0);
+}
+function drawMask(mask: Uint8Array) {
+  const gradient = heatmapCreator.defaultGradient[0].color;
+  const data = maskImage.data;
 
-  if (frameData !== undefined) {
-    await drawBufferToCanvas(frameData.buffer, 1);
+  data.fill(0);
+
+  for (let byteIndex = 0; byteIndex < mask.length; byteIndex++) {
+    const byte = mask[byteIndex];
+
+    if (byte === 0) continue;
+
+    for (let bit = 0; bit < 8; bit++) {
+      if ((byte & (1 << bit)) === 0) continue;
+
+      const tile = (byteIndex << 3) + bit;
+
+      const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+
+      data[i] = gradient[0];
+      data[i + 1] = gradient[1];
+      data[i + 2] = gradient[2];
+      data[i + 3] = gradient[3];
+    }
+  }
+
+  maskCtx.putImageData(maskImage, 0, 0);
+}
+let renderId = 0;
+function intersectMasks(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const result = new Uint8Array(Math.min(a.length, b.length));
+
+  for (let i = 0; i < result.length; i++) {
+    result[i] = a[i] & b[i];
+  }
+
+  return result;
+}
+async function drawFrame(index: number): Promise<void> {
+  const id = ++renderId;
+  const shouldContinue = () => id === renderId;
+  let tileFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let mask: Uint8Array | undefined;
+
+  tileFrameData = await tileConquredTimelapse.drawFrame(index, () => {
+    if (shouldContinue()) drawFrame(index);
+  });
+  if (!shouldContinue()) return;
+  if (tileFrameData !== undefined) {
+    mask = tileFrameData.mask;
+  }
+  if (!shouldContinue()) return;
+  tradeFrameData = await tradeRouteTimelapse.drawFrame(index, () => {
+    if (shouldContinue()) drawFrame(index);
+  });
+  if (!shouldContinue()) return;
+  if (tradeFrameData !== undefined && tileFrameData !== undefined) {
+    if (mask !== undefined) {
+      mask = intersectMasks(mask, tradeFrameData.mask);
+      drawMask(mask);
+    }
+    drawBorder(index);
+    await drawBufferToCanvas(tradeFrameData.buffer, 1);
+    await drawBufferToCanvas(tileFrameData.buffer, 0);
   }
 }
 

@@ -186,15 +186,15 @@ export class Timelapse {
         Timelapse.dispatch();
         return;
       }
-
+      let mask = new Uint8Array(e.data.mask);
       try {
         await this.cache.put(TimelapseDB.createKey(job.timelapseId, job.idx), {
           buffer: e.data.buffer,
-          mask: e.data.mask,
+          mask,
         });
         job.resolve({
           buffer: e.data.buffer,
-          mask: e.data.mask,
+          mask,
         });
       } catch (err) {
         job.reject(err instanceof Error ? err : new Error(String(err)));

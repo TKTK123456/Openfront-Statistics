@@ -82,7 +82,6 @@
 
       .map-stack canvas {
         position: absolute;
-        z-index: 1;
         inset: 0;
         background: transparent;
       }
@@ -130,9 +129,10 @@
         <h3>Tiles conquered</h3>
         <div class="map-stack">
           <img class="background" />
-          <canvas id="borderMap"></canvas>
-          <canvas id="map"></canvas>
-          <canvas id="tradeRouteMap"></canvas>
+          <canvas id="borderMap" style="z-index: 1"></canvas>
+          <canvas id="map" style="z-index: 3"></canvas>
+          <canvas id="mask" style="z-index: 4"></canvas>
+          <canvas id="tradeRouteMap" style="z-index: 5"></canvas>
         </div>
 
         <div
@@ -148,7 +148,7 @@
           <button name="previous">◀ Previous</button>
 
           <input
-            id="tileConqueredFrameSlider"
+            id="frameSlider"
             type="range"
             min="0"
             max="0"
