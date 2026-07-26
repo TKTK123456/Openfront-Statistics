@@ -89,6 +89,9 @@
       .map-stack canvas:last-of-type {
         position: relative;
       }
+      [hidden] {
+        display: none !important;
+      }
     </style>
   </head>
 
@@ -126,13 +129,28 @@
 
       <div class="card">
         <h2>Timelapses</h2>
-        <h3>Tiles conquered</h3>
+        <input
+          type="checkbox"
+          id="showTileConquered"
+          name="showTileConquered"
+          value="on"
+          checked
+        />
+        <label for="showTileConquered">Tiles Conquered</label>
+        <input
+          type="checkbox"
+          id="showTradeRoutes"
+          name="showTradeRoutes"
+          value="on"
+          checked
+        />
+        <label for="showTradeRoutes">Trade Routes</label>
         <div class="map-stack">
           <img class="background" />
           <canvas id="borderMap" style="z-index: 1"></canvas>
           <canvas id="map" style="z-index: 3"></canvas>
-          <canvas id="mask" style="z-index: 4"></canvas>
           <canvas id="tradeRouteMap" style="z-index: 5"></canvas>
+          <canvas id="mask" style="z-index: 4"></canvas>
         </div>
 
         <div
