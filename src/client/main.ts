@@ -5,6 +5,7 @@ import {
   TileRefs,
 } from "src/shared/util";
 import { Timelapse } from "./timelapses";
+import { heatmapCreator } from "src/visualization/heatmap";
 
 const frameCache = new Map<number, Uint8Array>();
 
@@ -21,8 +22,9 @@ const pirating = document.getElementById("pirating") as HTMLImageElement;
 const canvas = document.getElementById("map") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
 const borderCanvas = document.getElementById("borderMap") as HTMLCanvasElement;
-const borderCtx = borderCanvas.getContext("2d");
-
+const borderCtx = borderCanvas.getContext("2d")!;
+const maskCanvas = document.getElementById("mask") as HTMLCanvasElement;
+const maskCtx = maskCanvas.getContext("2d")!;
 const tradeCanvas = document.getElementById(
   "tradeRouteMap",
 ) as HTMLCanvasElement;
@@ -30,62 +32,69 @@ const tradeCtx = tradeCanvas.getContext("2d")!;
 const bg = document.getElementsByClassName(
   "background",
 ) as HTMLCollectionOf<HTMLImageElement>;
-
-const frameSliders = [
-  document.getElementById("tileConqueredFrameSlider") as HTMLInputElement,
-  document.getElementById("tradeRouteFrameSlider") as HTMLInputElement,
-];
+const offScreenCanvases: OffscreenCanvas[] = [];
+const offScreenCtxes: OffscreenCanvasRenderingContext2D[] = [];
+const frameSlider = document.getElementById("frameSlider") as HTMLInputElement;
 
 let tradeRouteTimelapse: Timelapse;
-let tileConquredTimelapse: Timelapse;
+let tilesConqueredTimelapse: Timelapse;
 let width = 0;
 let height = 0;
 
-let frame = [0, 0];
+let frame = 0;
 let totalFrames = 0;
 
 let tradeShipRoutesTime: Map<number, number>[] = [];
 let tileConquredTime: Map<number, number>[] = [];
 let borderFrames: Int32Array[] = [];
 let tileRefs: TileRefs;
+const visibleTimelapses: {
+  tilesConquered: { visible: boolean; toggle: () => void };
+  tradeRoutes: { visible: boolean; toggle: () => void };
+} = {
+  tilesConquered: {
+    visible: true,
+    toggle: async () => {
+      visibleTimelapses.tilesConquered.visible = visibleTimelapses
+        .tilesConquered.visible
+        ? false
+        : true;
+      await drawFrame(frame);
+      canvas.hidden = !visibleTimelapses.tilesConquered.visible;
+      borderCanvas.hidden = !visibleTimelapses.tilesConquered.visible;
+    },
+  },
+  tradeRoutes: {
+    visible: true,
+    toggle: async () => {
+      visibleTimelapses.tradeRoutes.visible = visibleTimelapses.tradeRoutes
+        .visible
+        ? false
+        : true;
+      await drawFrame(frame);
+      tradeCanvas.hidden = !visibleTimelapses.tradeRoutes.visible;
+    },
+  },
+};
 
 function drawBufferToCanvas(
-  buffer: Uint8Array | ArrayBuffer | ImageBitmap,
+  buffer: ArrayBuffer,
   whichCanvas: number,
 ): Promise<void> {
   return new Promise((resolve) => {
-    if (buffer instanceof ImageBitmap) {
-      if (whichCanvas === 0) {
-        canvas.width = buffer.width;
-        canvas.height = buffer.height;
-        ctx.drawImage(buffer, 0, 0);
-      } else {
-        tradeCanvas.width = buffer.width;
-        tradeCanvas.height = buffer.height;
-        tradeCtx.drawImage(buffer, 0, 0);
-      }
-
-      resolve();
-      return;
-    }
-
     const blob = new Blob([buffer as BlobPart], {
       type: "image/png",
     });
 
     const url = URL.createObjectURL(blob);
     const img = new Image();
-
+    let useCanvas = offScreenCanvases[whichCanvas + 2];
+    let useCtx = offScreenCtxes[whichCanvas + 2];
     img.onload = () => {
-      if (whichCanvas === 0) {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-      } else {
-        tradeCanvas.width = img.width;
-        tradeCanvas.height = img.height;
-        tradeCtx.drawImage(img, 0, 0);
-      }
+      useCanvas.width = img.width;
+      useCanvas.height = img.height;
+      useCtx.clearRect(0, 0, img.width, img.height);
+      useCtx.drawImage(img, 0, 0);
 
       URL.revokeObjectURL(url);
       resolve();
@@ -130,12 +139,18 @@ async function start(gameID: string): Promise<void> {
             break;
           case 3:
             tileConquredTime = binaryToMaps(uint32);
-            tileConquredTimelapse = new Timelapse({
+            tilesConqueredTimelapse = new Timelapse({
               width,
               height,
               frames: tileConquredTime,
             });
+            break;
         }
+        if (
+          tradeRouteTimelapse !== undefined &&
+          tilesConqueredTimelapse !== undefined
+        )
+          drawFrame(0);
       } else if (type === 6) {
         const bytes = new Uint8Array(data.slice(1));
 
@@ -216,7 +231,9 @@ async function start(gameID: string): Promise<void> {
     }
   };
 }
-
+let borderImage: ImageData;
+let maskImage: ImageData;
+let defaultMask: Uint8Array;
 function loadGame(data: {
   width: number;
   height: number;
@@ -234,129 +251,180 @@ function loadGame(data: {
   borderCanvas.height = height;
   tradeCanvas.width = width;
   tradeCanvas.height = height;
-
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  borderImage = borderCtx.createImageData(width, height);
+  maskImage = maskCtx.createImageData(width, height);
+  defaultMask = new Uint8Array(Math.ceil((width * height) / 8)).fill(0xff);
   totalFrames = data.frameCount;
-
-  frameSliders.forEach((s) => (s.max = String(totalFrames - 1)));
-  frameSliders.forEach((s) => (s.value = "0"));
+  for (let i = 0; i < 4; i++) {
+    const newOffscreenCanvas = new OffscreenCanvas(width, height);
+    offScreenCanvases.push(newOffscreenCanvas);
+    offScreenCtxes.push(newOffscreenCanvas.getContext("2d")!);
+  }
+  frameSlider.max = String(totalFrames - 1);
+  frameSlider.value = "0";
 }
 
-async function drawFrame(index: number, timelapse: number = 0): Promise<void> {
-  let frameData: ArrayBuffer | Uint8Array | undefined;
-  if (timelapse === 0) {
-    borderCtx?.clearRect(0, 0, width, height);
-    if (borderCtx) borderCtx.fillStyle = "black";
-    for (const tile of borderFrames[index]) {
-      borderCtx?.fillRect(tileRefs.x(tile), tileRefs.y(tile), 1, 1);
+async function drawBorder(index: number) {
+  const data = borderImage.data;
+  data.fill(0);
+
+  for (const tile of borderFrames[index]) {
+    const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+    data[i + 3] = 255;
+  }
+
+  offScreenCtxes[0].putImageData(borderImage, 0, 0);
+}
+async function drawMask(mask: Uint8Array) {
+  const gradient = heatmapCreator.defaultGradient[0].color;
+  const data = maskImage.data;
+
+  data.fill(0);
+
+  for (let byteIndex = 0; byteIndex < mask.length; byteIndex++) {
+    const byte = mask[byteIndex];
+
+    if (byte === 0) continue;
+
+    for (let bit = 0; bit < 8; bit++) {
+      if ((byte & (1 << bit)) === 0) continue;
+
+      const tile = (byteIndex << 3) + bit;
+
+      const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+
+      data[i] = gradient[0];
+      data[i + 1] = gradient[1];
+      data[i + 2] = gradient[2];
+      data[i + 3] = gradient[3];
+    }
+  }
+  offScreenCtxes[1].putImageData(maskImage, 0, 0);
+}
+let renderId = 0;
+function intersectMasks(masks: Uint8Array[]): Uint8Array {
+  if (masks.length === 0) {
+    return new Uint8Array();
+  }
+
+  const length = Math.min(...masks.map((mask) => mask.length));
+  const result = new Uint8Array(length);
+
+  for (let i = 0; i < length; i++) {
+    let value = 0xff;
+
+    for (const mask of masks) {
+      value &= mask[i];
     }
 
-    frameData = await tileConquredTimelapse.drawFrame(index, (frameData) => {
-      if (index === frame[timelapse]) {
-        drawBufferToCanvas(frameData, timelapse);
-      }
-    });
-  } else if (timelapse === 1) {
-    frameData = await tradeRouteTimelapse.drawFrame(index, (frameData) => {
-      if (index === frame[timelapse]) {
-        drawBufferToCanvas(frameData, timelapse);
-      }
-    });
+    result[i] = value;
   }
 
-  if (frameData !== undefined) {
-    await drawBufferToCanvas(frameData, timelapse);
+  return result;
+}
+async function drawFrame(index: number): Promise<void> {
+  const id = ++renderId;
+  const shouldContinue = () => id === renderId;
+  let tileFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let mask: Uint8Array[] = [defaultMask!];
+
+  tileFrameData = await tilesConqueredTimelapse.drawFrame(index, () => {
+    if (shouldContinue()) drawFrame(index);
+  });
+  if (!shouldContinue()) return;
+  if (tileFrameData !== undefined) {
+    if (visibleTimelapses.tilesConquered.visible) mask.push(tileFrameData.mask);
+  }
+  if (!shouldContinue()) return;
+  tradeFrameData = await tradeRouteTimelapse.drawFrame(index, () => {
+    if (shouldContinue()) drawFrame(index);
+  });
+  if (!shouldContinue()) return;
+  if (tradeFrameData !== undefined && tileFrameData !== undefined) {
+    const allDraws: Promise<void>[] = [];
+    if (visibleTimelapses.tradeRoutes.visible) mask.push(tradeFrameData.mask);
+    allDraws.push(drawMask(intersectMasks(mask)));
+    allDraws.push(drawBorder(index));
+    allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 1));
+    allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 0));
+    await Promise.all(allDraws);
+    borderCtx.clearRect(0, 0, width, height);
+    maskCtx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height);
+    tradeCtx.clearRect(0, 0, width, height);
+    borderCtx.drawImage(offScreenCanvases[0], 0, 0);
+    maskCtx.drawImage(offScreenCanvases[1], 0, 0);
+    ctx.drawImage(offScreenCanvases[2], 0, 0);
+    tradeCtx.drawImage(offScreenCanvases[3], 0, 0);
   }
 }
 
-async function nextFrame(timelapse: number = 0): Promise<void> {
-  if (frame[timelapse] < totalFrames - 1) {
-    frame[timelapse]++;
+async function nextFrame(): Promise<void> {
+  if (frame < totalFrames - 1) {
+    frame++;
 
-    frameSliders[timelapse].value = String(frame[timelapse]);
-    drawFrame(frame[timelapse], timelapse);
+    frameSlider.value = String(frame);
+    drawFrame(frame);
   }
 }
 
-async function previousFrame(timelapse: number = 0): Promise<void> {
-  if (frame[timelapse] > 0) {
-    frame[timelapse]--;
+async function previousFrame(): Promise<void> {
+  if (frame > 0) {
+    frame--;
 
-    frameSliders[timelapse].value = String(frame[timelapse]);
-    await drawFrame(frame[timelapse], timelapse);
+    frameSlider.value = String(frame);
+    await drawFrame(frame);
   }
 }
 
-let isPlayingTileConquests = false;
-let isPlayingTradeRoute = false;
-let lastTileConquestFrameTime = 0;
-let lastTradeRouteFrameTime = 0;
+let isPlaying = false;
+let lastFrameTime = 0;
 
-function playVideo(timelapse: number = 0): void {
+function playVideo(): void {
   if (
-    (timelapse === 0 &&
-      (!tileConquredTimelapse.ready || isPlayingTileConquests)) ||
-    (timelapse === 1 && (!tradeRouteTimelapse.ready || isPlayingTradeRoute))
+    !tilesConqueredTimelapse.ready ||
+    !tradeRouteTimelapse.ready ||
+    isPlaying
   ) {
     return;
   }
-  const wasPlayingAny = isPlayingTileConquests || isPlayingTradeRoute;
-  if (timelapse === 0) isPlayingTileConquests = true;
-  if (timelapse === 1) isPlayingTradeRoute = true;
-  if (!wasPlayingAny) requestAnimationFrame(playLoop);
+  isPlaying = true;
+  requestAnimationFrame(playLoop);
 }
 
-async function playTileConquestFrame(time: number) {
-  if (time - lastTileConquestFrameTime >= 1000 / 30) {
-    if (frame[0] >= totalFrames - 1) {
+async function playFrame(time: number) {
+  if (time - lastFrameTime >= 1000 / 30) {
+    if (frame >= totalFrames - 1) {
       stopVideo();
       return;
     }
 
-    frame[0]++;
+    frame++;
 
-    frameSliders[0].value = String(frame[0]);
-    await drawFrame(frame[0]);
+    frameSlider.value = String(frame);
+    await drawFrame(frame);
 
-    lastTileConquestFrameTime = time;
-  }
-}
-
-async function playTradeRouteFrame(time: number) {
-  if (time - lastTradeRouteFrameTime >= 1000 / 30) {
-    if (frame[1] >= totalFrames - 1) {
-      stopVideo(1);
-      return;
-    }
-
-    frame[1]++;
-
-    frameSliders[1].value = String(frame[1]);
-    await drawFrame(frame[1], 1);
-
-    lastTradeRouteFrameTime = time;
+    lastFrameTime = time;
   }
 }
 
 async function playLoop(time: number): Promise<void> {
-  if (isPlayingTileConquests) await playTileConquestFrame(time);
-  if (isPlayingTradeRoute) await playTradeRouteFrame(time);
-
-  if (isPlayingTileConquests || isPlayingTradeRoute)
+  if (isPlaying) {
+    await playFrame(time);
     requestAnimationFrame(playLoop);
+  }
 }
 
-function stopVideo(timelapse: number = 0): void {
-  if (timelapse === 0) isPlayingTileConquests = false;
-  if (timelapse === 1) isPlayingTradeRoute = false;
+function stopVideo(): void {
+  isPlaying = false;
 }
 
-frameSliders[0].addEventListener("input", () => {
-  frame[0] = Number(frameSliders[0].value);
-  drawFrame(frame[0]);
-});
-frameSliders[1].addEventListener("input", async () => {
-  frame[1] = Number(frameSliders[1].value);
-  await drawFrame(frame[1], 1);
+frameSlider.addEventListener("input", () => {
+  frame = Number(frameSlider.value);
+  drawFrame(frame);
 });
 
 start(window.gameId);
@@ -378,3 +446,15 @@ setupButtons("play", playVideo);
 setupButtons("pause", stopVideo);
 setupButtons("next", nextFrame);
 setupButtons("previous", previousFrame);
+
+function setupTimelapseToggle(
+  id: string,
+  timelapse: keyof typeof visibleTimelapses,
+) {
+  const checkbox = document.getElementById(id) as HTMLInputElement;
+  if (!checkbox.checked) checkbox.checked = true;
+  checkbox.onchange = visibleTimelapses[timelapse].toggle;
+}
+
+setupTimelapseToggle("showTileConquered", "tilesConquered");
+setupTimelapseToggle("showTradeRoutes", "tradeRoutes");

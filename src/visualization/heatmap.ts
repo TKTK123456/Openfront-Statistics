@@ -128,7 +128,34 @@ export function createHeatmap(options: {
   gradient: Gradient;
   base: Uint8ClampedArray | null;
   frequencieMultiplier?: number;
-}): Uint8ClampedArray {
+  noFinalLayer: true;
+}): { heatmap: Uint8ClampedArray; mask: Uint8Array };
+export function createHeatmap(options: {
+  tileFrequencies:
+    | Map<number, number>
+    | { tiles: Int32Array; counts: Float64Array };
+  width: number;
+  height: number;
+  radius: number;
+  radiusSq: number;
+  gradient: Gradient;
+  base: Uint8ClampedArray | null;
+  frequencieMultiplier?: number;
+  noFinalLayer?: false;
+}): Uint8ClampedArray;
+export function createHeatmap(options: {
+  tileFrequencies:
+    | Map<number, number>
+    | { tiles: Int32Array; counts: Float64Array };
+  width: number;
+  height: number;
+  radius: number;
+  radiusSq: number;
+  gradient: Gradient;
+  base: Uint8ClampedArray | null;
+  frequencieMultiplier?: number;
+  noFinalLayer?: boolean;
+}): Uint8ClampedArray | { heatmap: Uint8ClampedArray; mask: Uint8Array } {
   let {
     tileFrequencies,
     width,
@@ -138,6 +165,7 @@ export function createHeatmap(options: {
     gradient,
     base,
     frequencieMultiplier,
+    noFinalLayer,
   } = options;
   if (frequencieMultiplier === undefined) {
     frequencieMultiplier = 0.01;
@@ -171,7 +199,6 @@ export function createHeatmap(options: {
         if (distSq > radiusSq) continue;
 
         const norm = Math.sqrt(distSq) / radius;
-
         heatAlpha[py * width + px] += value * Math.exp(-3 * norm * norm);
       }
     }
@@ -183,9 +210,20 @@ export function createHeatmap(options: {
   const out = new Uint8ClampedArray(width * height * 4);
 
   const denom = maxHeat > 0 ? Math.log2(maxHeat + 1) : 0;
-
+  const mask = new Uint8Array(Math.ceil((width * height) / 8));
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
+    if (noFinalLayer && heatAlpha[i] === 0) {
+      const byte = i >> 3;
+      const bit = i & 7;
+
+      mask[byte] |= 1 << bit;
+      out[idx] = 0;
+      out[idx + 1] = 0;
+      out[idx + 2] = 0;
+      out[idx + 3] = 0;
+      continue;
+    }
     const alpha = maxHeat > 0 ? Math.log2(heatAlpha[i] + 1) / denom : 0;
 
     const [r, g, b, a] = interpolateColor(alpha, gradient);
@@ -195,7 +233,11 @@ export function createHeatmap(options: {
     if (base !== null)
       frameBase = [base[idx], base[idx + 1], base[idx + 2], 255];
     else {
-      frameBase = [0, 0, 0, a];
+      out[idx] = r;
+      out[idx + 1] = g;
+      out[idx + 2] = b;
+      out[idx + 3] = a;
+      continue;
     }
     if (ha === 0) {
       out[idx] = frameBase[0];
@@ -210,6 +252,6 @@ export function createHeatmap(options: {
     out[idx + 2] = Math.round(b * ha + frameBase[2] * (1 - ha));
     out[idx + 3] = frameBase[3];
   }
-
+  if (noFinalLayer) return { heatmap: out, mask };
   return out;
 }

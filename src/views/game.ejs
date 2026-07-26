@@ -82,13 +82,15 @@
 
       .map-stack canvas {
         position: absolute;
-        z-index: 1;
         inset: 0;
         background: transparent;
       }
 
       .map-stack canvas:last-of-type {
         position: relative;
+      }
+      [hidden] {
+        display: none !important;
       }
     </style>
   </head>
@@ -127,11 +129,28 @@
 
       <div class="card">
         <h2>Timelapses</h2>
-        <h3>Tiles conquered</h3>
+        <input
+          type="checkbox"
+          id="showTileConquered"
+          name="showTileConquered"
+          value="on"
+          checked
+        />
+        <label for="showTileConquered">Tiles Conquered</label>
+        <input
+          type="checkbox"
+          id="showTradeRoutes"
+          name="showTradeRoutes"
+          value="on"
+          checked
+        />
+        <label for="showTradeRoutes">Trade Routes</label>
         <div class="map-stack">
           <img class="background" />
-          <canvas id="borderMap"></canvas>
-          <canvas id="map"></canvas>
+          <canvas id="borderMap" style="z-index: 1"></canvas>
+          <canvas id="map" style="z-index: 3"></canvas>
+          <canvas id="tradeRouteMap" style="z-index: 5"></canvas>
+          <canvas id="mask" style="z-index: 4"></canvas>
         </div>
 
         <div
@@ -147,37 +166,7 @@
           <button name="previous">◀ Previous</button>
 
           <input
-            id="tileConqueredFrameSlider"
-            type="range"
-            min="0"
-            max="0"
-            value="0"
-            style="flex: 1"
-          />
-
-          <button name="next">Next ▶</button>
-          <br />
-        </div>
-        <h3>Trade routes</h3>
-
-        <div class="map-stack">
-          <img class="background" />
-          <canvas id="tradeRouteMap"></canvas>
-        </div>
-        <div
-          style="
-            margin-top: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          "
-        >
-          <button name="play">Play</button>
-          <button name="pause">Pause</button>
-          <button name="previous">◀ Previous</button>
-
-          <input
-            id="tradeRouteFrameSlider"
+            id="frameSlider"
             type="range"
             min="0"
             max="0"
