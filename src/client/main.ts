@@ -32,8 +32,8 @@ const tradeCtx = tradeCanvas.getContext("2d")!;
 const bg = document.getElementsByClassName(
   "background",
 ) as HTMLCollectionOf<HTMLImageElement>;
-const offScreenCanvases: OffscreenCanvas[] = []
-const offScreenCtxes: OffscreenCanvasRenderingContext2D[] = []
+const offScreenCanvases: OffscreenCanvas[] = [];
+const offScreenCtxes: OffscreenCanvasRenderingContext2D[] = [];
 const frameSlider = document.getElementById("frameSlider") as HTMLInputElement;
 
 let tradeRouteTimelapse: Timelapse;
@@ -60,13 +60,13 @@ function drawBufferToCanvas(
 
     const url = URL.createObjectURL(blob);
     const img = new Image();
-    let useCanvas = offScreenCanvases[whichCanvas+2]
-    let useCtx = offScreenCtxes[whichCanvas+2]
+    let useCanvas = offScreenCanvases[whichCanvas + 2];
+    let useCtx = offScreenCtxes[whichCanvas + 2];
     img.onload = () => {
-        useCanvas.width = img.width;
-        useCanvas.height = img.height;
-        useCtx.clearRect(0, 0, img.width, img.height);
-        useCtx.drawImage(img, 0, 0);
+      useCanvas.width = img.width;
+      useCanvas.height = img.height;
+      useCtx.clearRect(0, 0, img.width, img.height);
+      useCtx.drawImage(img, 0, 0);
 
       URL.revokeObjectURL(url);
       resolve();
@@ -221,10 +221,10 @@ function loadGame(data: {
   borderImage = borderCtx.createImageData(width, height);
   maskImage = maskCtx.createImageData(width, height);
   totalFrames = data.frameCount;
-  for (let i = 0;i<4;i++) {
-    const newOffscreenCanvas = new OffscreenCanvas(width, height)
-    offScreenCanvases.push(newOffscreenCanvas)
-    offScreenCtxes.push(newOffscreenCanvas.getContext("2d")!)
+  for (let i = 0; i < 4; i++) {
+    const newOffscreenCanvas = new OffscreenCanvas(width, height);
+    offScreenCanvases.push(newOffscreenCanvas);
+    offScreenCtxes.push(newOffscreenCanvas.getContext("2d")!);
   }
   frameSlider.max = String(totalFrames - 1);
   frameSlider.value = "0";
@@ -265,7 +265,7 @@ async function drawMask(mask: Uint8Array) {
       data[i + 3] = gradient[3];
     }
   }
-  offScreenCtxes[1].putImageData(maskImage, 0, 0)
+  offScreenCtxes[1].putImageData(maskImage, 0, 0);
 }
 let renderId = 0;
 function intersectMasks(a: Uint8Array, b: Uint8Array): Uint8Array {
@@ -297,7 +297,7 @@ async function drawFrame(index: number): Promise<void> {
   });
   if (!shouldContinue()) return;
   if (tradeFrameData !== undefined && tileFrameData !== undefined) {
-    const allDraws:(Promise<void>)[] = []
+    const allDraws: Promise<void>[] = [];
     if (mask !== undefined) {
       mask = intersectMasks(mask, tradeFrameData.mask);
       allDraws.push(drawMask(mask));
@@ -305,15 +305,15 @@ async function drawFrame(index: number): Promise<void> {
     allDraws.push(drawBorder(index));
     allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 1));
     allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 0));
-    await Promise.all(allDraws)
-    borderCtx.clearRect(0,0,width,height)
-    maskCtx.clearRect(0,0,width,height)
-    ctx.clearRect(0,0,width,height)
-    tradeCtx.clearRect(0,0,width,height)
-    borderCtx.drawImage(offScreenCanvases[0], 0, 0)
-    maskCtx.drawImage(offScreenCanvases[1], 0, 0)
-    ctx.drawImage(offScreenCanvases[2], 0, 0)
-    tradeCtx.drawImage(offScreenCanvases[3], 0, 0)
+    await Promise.all(allDraws);
+    borderCtx.clearRect(0, 0, width, height);
+    maskCtx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height);
+    tradeCtx.clearRect(0, 0, width, height);
+    borderCtx.drawImage(offScreenCanvases[0], 0, 0);
+    maskCtx.drawImage(offScreenCanvases[1], 0, 0);
+    ctx.drawImage(offScreenCanvases[2], 0, 0);
+    tradeCtx.drawImage(offScreenCanvases[3], 0, 0);
   }
 }
 

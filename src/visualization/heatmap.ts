@@ -233,7 +233,11 @@ export function createHeatmap(options: {
     if (base !== null)
       frameBase = [base[idx], base[idx + 1], base[idx + 2], 255];
     else {
-      frameBase = [0, 0, 0, a];
+      out[idx] = r;
+      out[idx + 1] = g;
+      out[idx + 2] = b;
+      out[idx + 3] = a;
+      continue;
     }
     if (ha === 0) {
       out[idx] = frameBase[0];
