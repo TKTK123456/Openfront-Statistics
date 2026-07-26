@@ -8,7 +8,7 @@ import { GameMapSize } from "../../OpenFrontIO/src/core/game/Game";
 import path from "path";
 import { PNG } from "pngjs";
 import { createCombinedTimelapse } from "./timelapse";
-import { interpolateFrames } from "src/shared/util";
+import { interpolateFrames } from "src/shared/util/util";
 
 interface tradeRouteTimelapseOut {
   routeFrames?: Map<number, number>[];

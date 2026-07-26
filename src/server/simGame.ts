@@ -1,4 +1,4 @@
-import { fetchGame } from "src/shared/util";
+import { fetchGame } from "src/shared/util/util";
 import {
   gameRunnerHandlerConfig,
   handleGameRunner,

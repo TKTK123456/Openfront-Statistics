@@ -2,8 +2,9 @@ import {
   binaryToMaps,
   decodeCombinedBuffer,
   interpolateFrames,
+  intersectMasks,
   TileRefs,
-} from "src/shared/util";
+} from "src/shared/util/util";
 import { Timelapse } from "./timelapses";
 import { heatmapCreator } from "src/visualization/heatmap";
 
@@ -323,26 +324,6 @@ async function drawMask(mask: Uint8Array) {
   offScreenCtxes[1].putImageData(maskImage, 0, 0);
 }
 let renderId = 0;
-function intersectMasks(masks: Uint8Array[]): Uint8Array {
-  if (masks.length === 0) {
-    return new Uint8Array();
-  }
-
-  const length = Math.min(...masks.map((mask) => mask.length));
-  const result = new Uint8Array(length);
-
-  for (let i = 0; i < length; i++) {
-    let value = 0xff;
-
-    for (const mask of masks) {
-      value &= mask[i];
-    }
-
-    result[i] = value;
-  }
-
-  return result;
-}
 async function drawFrame(index: number): Promise<void> {
   const id = ++renderId;
   const shouldContinue = () => id === renderId;
