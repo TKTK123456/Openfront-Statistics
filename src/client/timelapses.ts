@@ -126,6 +126,7 @@ export class Timelapse {
   /** Resolves when every frame has been rendered */
   public ready: boolean = false;
   public onFinish: (self: Timelapse) => void;
+  public onFrameLoad: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void;
 
   constructor(options: {
     width: number;
@@ -133,13 +134,17 @@ export class Timelapse {
     frames: Map<number, number>[];
     workerCount?: number;
     onFinish?: (self: Timelapse) => void;
+    onFrameLoad?: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void;
   }) {
-    let { width, height, frames, workerCount, onFinish } = options;
+    let { width, height, frames, workerCount, onFinish, onFrameLoad } = options;
     if (workerCount === undefined) {
       workerCount = navigator.hardwareConcurrency ?? 4;
     }
     if (onFinish === undefined) {
-      onFinish = (self: Timelapse) => {};
+      onFinish = () => {};
+    }
+    if (onFrameLoad === undefined) {
+      onFrameLoad = () => {};
     }
     this.workers = Timelapse.Workers;
     this.queue = Timelapse.Queue;
@@ -147,6 +152,7 @@ export class Timelapse {
     this.width = width;
     this.height = height;
     this.onFinish = onFinish;
+    this.onFrameLoad = onFrameLoad;
     this.frames = Timelapse.Frames;
     this.frames.push(frames);
     this.cache = Timelapse.Cache ?? new TimelapseDB();
@@ -199,7 +205,6 @@ export class Timelapse {
       } catch (err) {
         job.reject(err instanceof Error ? err : new Error(String(err)));
       }
-
       Timelapse.dispatch();
     };
 
@@ -229,7 +234,7 @@ export class Timelapse {
     }>[] = [];
 
     for (let i = 0; i < this.frames[this.id].length; i++) {
-      promises.push(this.render(i));
+      promises.push(this.render(i, this.onFrameLoad));
     }
 
     await Promise.all(promises);
@@ -247,8 +252,7 @@ export class Timelapse {
     const frame = await this.cache.get(TimelapseDB.createKey(this.id, idx));
 
     if (!frame || frame === undefined) {
-      if (notRendered !== undefined)
-        this.bringToFrontOfQueue(idx)?.then(notRendered);
+      if (notRendered !== undefined) this.bringToFrontOfQueue(idx, notRendered);
       return undefined;
     }
     return frame;
@@ -256,20 +260,25 @@ export class Timelapse {
 
   private render(
     idx: number,
+    onFinish: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void,
   ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array }> {
     if (
       this.queue.findIndex(
         (j) => j.idx === idx && j.timelapseId === this.id,
       ) !== -1
     ) {
-      const out = this.bringToFrontOfQueue(idx);
+      const out = this.bringToFrontOfQueue(idx, onFinish);
       if (out !== undefined) return out;
     }
     return new Promise((resolve, reject) => {
+      const finish = (img: { buffer: ArrayBuffer; mask: Uint8Array }) => {
+        onFinish(img);
+        resolve(img);
+      };
       this.queue.push({
         idx,
         timelapseId: this.id,
-        resolve,
+        resolve: finish,
         reject,
         height: this.height,
         width: this.width,
@@ -299,6 +308,7 @@ export class Timelapse {
   }
   public bringToFrontOfQueue(
     idx: number,
+    onFinish: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void,
   ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array }> | undefined {
     const jobIdx = this.queue.findIndex(
       (j) => j.idx === idx && j.timelapseId === this.id,
@@ -308,6 +318,7 @@ export class Timelapse {
     return new Promise((resolve, reject) => {
       const oldResolve = job.resolve;
       job.resolve = (img: { buffer: ArrayBuffer; mask: Uint8Array }) => {
+        onFinish(img);
         resolve(img);
         oldResolve(img);
       };

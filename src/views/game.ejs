@@ -51,7 +51,7 @@
         margin-top: 10px;
       }
 
-      progress {
+      .progress {
         width: 100%;
         height: 20px;
       }
@@ -109,7 +109,7 @@
 
         <p id="status">Connecting...</p>
 
-        <progress id="progress" max="100" value="0"></progress>
+        <progress id="progress" max="100" value="0" class="progress"></progress>
       </div>
 
       <div class="card">
@@ -175,7 +175,26 @@
           />
 
           <button name="next">Next ▶</button>
-          <br />
+        </div>
+        <br />
+        <div
+          style="
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+          "
+        >
+          <label for="timelapseProgress">Frames loaded:</label>
+          <progress
+            class="progress"
+            id="timelapseProgress"
+            max="100"
+            value="0"
+          ></progress>
+          <span id="timelapse%">0.00%</span>
         </div>
       </div>
     </main>

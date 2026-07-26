@@ -14,6 +14,12 @@ socket.binaryType = "arraybuffer";
 
 const status = document.getElementById("status") as HTMLDivElement;
 const progress = document.getElementById("progress") as HTMLProgressElement;
+const timelapseProgress = document.getElementById(
+  "timelapseProgress",
+) as HTMLProgressElement;
+const timelapsePercent = document.getElementById(
+  "timelapse%",
+) as HTMLDivElement;
 
 const conquered = document.getElementById("conquered") as HTMLImageElement;
 const trade = document.getElementById("trade") as HTMLImageElement;
@@ -43,6 +49,8 @@ let height = 0;
 
 let frame = 0;
 let totalFrames = 0;
+let loadedHeatmapFrames = 0;
+let heatmapAmount = 2;
 
 let tradeShipRoutesTime: Map<number, number>[] = [];
 let tileConquredTime: Map<number, number>[] = [];
@@ -76,7 +84,16 @@ const visibleTimelapses: {
     },
   },
 };
-
+function onFrameLoad() {
+  loadedHeatmapFrames++;
+  let amountNeeded = totalFrames * heatmapAmount;
+  let progressPercent = Math.min(
+    Math.max((loadedHeatmapFrames / amountNeeded) * 100, 0),
+    100,
+  );
+  timelapseProgress.value = progressPercent;
+  timelapsePercent.textContent = `${progressPercent.toFixed(2)}%`;
+}
 function drawBufferToCanvas(
   buffer: ArrayBuffer,
   whichCanvas: number,
@@ -135,6 +152,7 @@ async function start(gameID: string): Promise<void> {
               width,
               height,
               frames: tradeShipRoutesTime,
+              onFrameLoad,
             });
             break;
           case 3:
@@ -143,6 +161,7 @@ async function start(gameID: string): Promise<void> {
               width,
               height,
               frames: tileConquredTime,
+              onFrameLoad,
             });
             break;
         }
