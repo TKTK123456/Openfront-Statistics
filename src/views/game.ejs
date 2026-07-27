@@ -186,7 +186,7 @@
             white-space: nowrap;
           "
         >
-          <label for="timelapseProgress">Frames loaded:</label>
+          <label for="timelapseProgress">Frame loading progress:</label>
           <progress
             class="progress"
             id="timelapseProgress"
@@ -198,6 +198,24 @@
       </div>
       <div class="card">
         <h2>Render MP4 Video</h2>
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+          "
+        >
+          <label for="renderProgress">Frames rendering progress:</label>
+          <progress
+            class="progress"
+            id="renderProgress"
+            max="100"
+            value="0"
+          ></progress>
+          <span id="rendered%">0.00%</span>
+        </div>
         <button name="renderVideo" hidden>Render MP4 file</button>
       </div>
     </main>

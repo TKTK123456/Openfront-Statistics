@@ -7,20 +7,25 @@ import {
 } from "src/shared/util/util";
 import { Timelapse } from "./timelapses";
 import { heatmapCreator } from "src/visualization/heatmap";
+import { VideoEncoder } from "./createMP4";
 
 const frameCache = new Map<number, Uint8Array>();
 
 const socket: globalThis.WebSocket = new WebSocket(`ws://${location.host}/ws`);
 socket.binaryType = "arraybuffer";
 
-const status = document.getElementById("status") as HTMLDivElement;
+const status = document.getElementById("status") as HTMLSpanElement;
 const progress = document.getElementById("progress") as HTMLProgressElement;
 const timelapseProgress = document.getElementById(
   "timelapseProgress",
 ) as HTMLProgressElement;
 const timelapsePercent = document.getElementById(
   "timelapse%",
-) as HTMLDivElement;
+) as HTMLSpanElement;
+const renderedProgress = document.getElementById(
+  "renderProgress",
+) as HTMLProgressElement;
+const renderedPercent = document.getElementById("rendered%") as HTMLSpanElement;
 
 const conquered = document.getElementById("conquered") as HTMLImageElement;
 const trade = document.getElementById("trade") as HTMLImageElement;
@@ -115,8 +120,8 @@ function drawBufferToCanvas(
 
     const url = URL.createObjectURL(blob);
     const img = new Image();
-    let useCanvas = offScreenCanvases[whichCanvas + 2];
-    let useCtx = offScreenCtxes[whichCanvas + 2];
+    let useCanvas = offScreenCanvases[whichCanvas];
+    let useCtx = offScreenCtxes[whichCanvas];
     img.onload = () => {
       useCanvas.width = img.width;
       useCanvas.height = img.height;
@@ -285,7 +290,7 @@ class ImageQueue {
     return new Promise((resolve, reject) => {
       const use = {
         resolve: (img: ImageData) => {
-          resolve(run);
+          resolve(run(img));
         },
         reject,
       };
@@ -304,8 +309,7 @@ class ImageQueue {
     }
   }
 }
-let borderImages: ImageQueue;
-let maskImages: ImageQueue;
+let imageQueue: ImageQueue;
 let defaultMask: Uint8Array;
 function loadGame(data: {
   width: number;
@@ -326,8 +330,7 @@ function loadGame(data: {
   tradeCanvas.height = height;
   maskCanvas.width = width;
   maskCanvas.height = height;
-  borderImages = new ImageQueue(2, width, height, borderCtx);
-  maskImages = new ImageQueue(2, width, height, maskCtx);
+  imageQueue = new ImageQueue(3, width, height, borderCtx);
   defaultMask = new Uint8Array(Math.ceil((width * height) / 8)).fill(0xff);
   totalFrames = data.frameCount;
   for (let i = 0; i < 8; i++) {
@@ -339,8 +342,8 @@ function loadGame(data: {
   frameSlider.value = "0";
 }
 
-function drawBorder(index: number, canvasID: number = 0): Promise<void> {
-  return borderImages.useImage((img: ImageData) => {
+function drawBorder(index: number, canvasID: number): Promise<void> {
+  return imageQueue.useImage((img: ImageData) => {
     const data = img.data;
     data.fill(0);
 
@@ -352,9 +355,9 @@ function drawBorder(index: number, canvasID: number = 0): Promise<void> {
     offScreenCtxes[canvasID].putImageData(img, 0, 0);
   });
 }
-async function drawMask(mask: Uint8Array, canvasID: number = 1) {
+async function drawMask(mask: Uint8Array, canvasID: number) {
   const gradient = heatmapCreator.defaultGradient[0].color;
-  return maskImages.useImage((img: ImageData) => {
+  return imageQueue.useImage((img: ImageData) => {
     const data = img.data;
 
     data.fill(0);
@@ -403,17 +406,17 @@ async function drawFrame(index: number): Promise<void> {
   if (tradeFrameData !== undefined && tileFrameData !== undefined) {
     const allDraws: Promise<void>[] = [];
     if (visibleTimelapses.tradeRoutes.visible) mask.push(tradeFrameData.mask);
-    allDraws.push(drawMask(intersectMasks(mask)));
-    allDraws.push(drawBorder(index));
-    allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 1));
-    allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 0));
+    allDraws.push(drawMask(intersectMasks(mask), 0));
+    allDraws.push(drawBorder(index, 1));
+    allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 2));
+    allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 3));
     await Promise.all(allDraws);
     borderCtx.clearRect(0, 0, width, height);
     maskCtx.clearRect(0, 0, width, height);
     ctx.clearRect(0, 0, width, height);
     tradeCtx.clearRect(0, 0, width, height);
-    borderCtx.drawImage(offScreenCanvases[0], 0, 0);
-    maskCtx.drawImage(offScreenCanvases[1], 0, 0);
+    maskCtx.drawImage(offScreenCanvases[0], 0, 0);
+    borderCtx.drawImage(offScreenCanvases[1], 0, 0);
     ctx.drawImage(offScreenCanvases[2], 0, 0);
     tradeCtx.drawImage(offScreenCanvases[3], 0, 0);
   }
@@ -476,7 +479,30 @@ async function playLoop(time: number): Promise<void> {
   }
 }
 let renderedFrames = 0;
-async function renderFrame(frame: number): Promise<void> {}
+async function renderFrame(
+  frame: number,
+  videoRender: VideoEncoder,
+): Promise<void> {
+  let tileFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let mask: Uint8Array[] = [defaultMask!];
+
+  tileFrameData = await tilesConqueredTimelapse.drawFrame(frame);
+  if (tileFrameData !== undefined) {
+    mask.push(tileFrameData.mask);
+  }
+  tradeFrameData = await tradeRouteTimelapse.drawFrame(frame);
+  if (tradeFrameData !== undefined && tileFrameData !== undefined) {
+    const allDraws: Promise<void>[] = [];
+    mask.push(tradeFrameData.mask);
+    allDraws.push(drawMask(intersectMasks(mask), 4));
+    allDraws.push(drawBorder(frame, 5));
+    allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 6));
+    allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 7));
+    await Promise.all(allDraws);
+    await videoRender.addFrame(offScreenCanvases.slice(4));
+  }
+}
 async function renderVideo(): Promise<void> {
   if (
     !tilesConqueredTimelapse.ready ||
@@ -484,8 +510,35 @@ async function renderVideo(): Promise<void> {
     isRendering
   )
     return;
-  for (renderedFrames = 0; renderedFrames < totalFrames; renderedFrames++) {
-    renderFrame(renderedFrames);
+  let videoRender = new VideoEncoder({
+    width,
+    height,
+    background: bg[0],
+  });
+  renderedProgress.value = 0;
+  renderedPercent.textContent = `0.00%`;
+  try {
+    for (renderedFrames = 0; renderedFrames < totalFrames; renderedFrames++) {
+      await renderFrame(renderedFrames, videoRender);
+      let percent = Math.min(
+        Math.max((renderedFrames + 1 / totalFrames) * 100, 0),
+        100,
+      );
+      renderedProgress.value = percent;
+      renderedPercent.textContent = `${percent.toFixed(2)}%`;
+    }
+    const downloadUrl = URL.createObjectURL(await videoRender.createVideo());
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = `${window.gameId}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    // Free the memory once the browser has started the download.
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+  } finally {
+    isRendering = false;
   }
 }
 
