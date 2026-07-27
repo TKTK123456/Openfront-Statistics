@@ -36,6 +36,7 @@
         "fastpriorityqueue": "^0.7.5",
         "intl-messageformat": "^11.0.7",
         "jest-fetch-mock": "^3.0.3",
+        "mediabunny": "^1.51.0",
         "nanoid": "^5.1.5",
         "node-av": "^6.1.0",
         "obscenity": "^0.4.3",

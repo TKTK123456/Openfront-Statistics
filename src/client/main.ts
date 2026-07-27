@@ -51,7 +51,7 @@ let height = 0;
 let frame = 0;
 let totalFrames = 0;
 let loadedHeatmapFrames = 0;
-let heatmapAmount = 2;
+let timelapseAmount = 2;
 
 let tradeShipRoutesTime: Map<number, number>[] = [];
 let tileConquredTime: Map<number, number>[] = [];
@@ -87,13 +87,22 @@ const visibleTimelapses: {
 };
 function onFrameLoad() {
   loadedHeatmapFrames++;
-  let amountNeeded = totalFrames * heatmapAmount;
+  let amountNeeded = totalFrames * timelapseAmount;
   let progressPercent = Math.min(
     Math.max((loadedHeatmapFrames / amountNeeded) * 100, 0),
     100,
   );
   timelapseProgress.value = progressPercent;
   timelapsePercent.textContent = `${progressPercent.toFixed(2)}%`;
+}
+let finishedTimelapses = 0;
+let buttonsHiddenUntilTimelapseFinished: HTMLButtonElement[] = [];
+function onFinishTimelapse() {
+  finishedTimelapses++;
+  if (finishedTimelapses < timelapseAmount) return;
+  for (const button of buttonsHiddenUntilTimelapseFinished) {
+    button.hidden = false;
+  }
 }
 function drawBufferToCanvas(
   buffer: ArrayBuffer,
@@ -154,6 +163,7 @@ async function start(gameID: string): Promise<void> {
               height,
               frames: tradeShipRoutesTime,
               onFrameLoad,
+              onFinish: onFinishTimelapse,
             });
             break;
           case 3:
@@ -163,6 +173,7 @@ async function start(gameID: string): Promise<void> {
               height,
               frames: tileConquredTime,
               onFrameLoad,
+              onFinish: onFinishTimelapse,
             });
             break;
         }
@@ -251,8 +262,50 @@ async function start(gameID: string): Promise<void> {
     }
   };
 }
-let borderImage: ImageData;
-let maskImage: ImageData;
+class ImageQueue {
+  private images: { img: ImageData; inUse: boolean }[] = [];
+  private queue: {
+    resolve: (img: ImageData) => void;
+    reject: (reason?: any) => void;
+  }[] = [];
+  constructor(
+    amount: number,
+    width: number,
+    height: number,
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  ) {
+    for (let i = 0; i < amount; i++) {
+      this.images.push({
+        img: ctx.createImageData(width, height),
+        inUse: false,
+      });
+    }
+  }
+  useImage(run: (img: ImageData) => any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const use = {
+        resolve: (img: ImageData) => {
+          resolve(run);
+        },
+        reject,
+      };
+      this.queue.push(use);
+      this.dispatch();
+    });
+  }
+  dispatch() {
+    while (this.queue.length) {
+      const image = this.images.find((v) => !v.inUse);
+      if (!image) return;
+      image.inUse = true;
+      const job = this.queue.shift();
+      job?.resolve(image.img);
+      image.inUse = false;
+    }
+  }
+}
+let borderImages: ImageQueue;
+let maskImages: ImageQueue;
 let defaultMask: Uint8Array;
 function loadGame(data: {
   width: number;
@@ -273,11 +326,11 @@ function loadGame(data: {
   tradeCanvas.height = height;
   maskCanvas.width = width;
   maskCanvas.height = height;
-  borderImage = borderCtx.createImageData(width, height);
-  maskImage = maskCtx.createImageData(width, height);
+  borderImages = new ImageQueue(2, width, height, borderCtx);
+  maskImages = new ImageQueue(2, width, height, maskCtx);
   defaultMask = new Uint8Array(Math.ceil((width * height) / 8)).fill(0xff);
   totalFrames = data.frameCount;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 8; i++) {
     const newOffscreenCanvas = new OffscreenCanvas(width, height);
     offScreenCanvases.push(newOffscreenCanvas);
     offScreenCtxes.push(newOffscreenCanvas.getContext("2d")!);
@@ -286,42 +339,46 @@ function loadGame(data: {
   frameSlider.value = "0";
 }
 
-async function drawBorder(index: number) {
-  const data = borderImage.data;
-  data.fill(0);
+function drawBorder(index: number, canvasID: number = 0): Promise<void> {
+  return borderImages.useImage((img: ImageData) => {
+    const data = img.data;
+    data.fill(0);
 
-  for (const tile of borderFrames[index]) {
-    const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
-    data[i + 3] = 255;
-  }
-
-  offScreenCtxes[0].putImageData(borderImage, 0, 0);
-}
-async function drawMask(mask: Uint8Array) {
-  const gradient = heatmapCreator.defaultGradient[0].color;
-  const data = maskImage.data;
-
-  data.fill(0);
-
-  for (let byteIndex = 0; byteIndex < mask.length; byteIndex++) {
-    const byte = mask[byteIndex];
-
-    if (byte === 0) continue;
-
-    for (let bit = 0; bit < 8; bit++) {
-      if ((byte & (1 << bit)) === 0) continue;
-
-      const tile = (byteIndex << 3) + bit;
-
+    for (const tile of borderFrames[index]) {
       const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
-
-      data[i] = gradient[0];
-      data[i + 1] = gradient[1];
-      data[i + 2] = gradient[2];
-      data[i + 3] = gradient[3];
+      data[i + 3] = 255;
     }
-  }
-  offScreenCtxes[1].putImageData(maskImage, 0, 0);
+
+    offScreenCtxes[canvasID].putImageData(img, 0, 0);
+  });
+}
+async function drawMask(mask: Uint8Array, canvasID: number = 1) {
+  const gradient = heatmapCreator.defaultGradient[0].color;
+  return maskImages.useImage((img: ImageData) => {
+    const data = img.data;
+
+    data.fill(0);
+
+    for (let byteIndex = 0; byteIndex < mask.length; byteIndex++) {
+      const byte = mask[byteIndex];
+
+      if (byte === 0) continue;
+
+      for (let bit = 0; bit < 8; bit++) {
+        if ((byte & (1 << bit)) === 0) continue;
+
+        const tile = (byteIndex << 3) + bit;
+
+        const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+
+        data[i] = gradient[0];
+        data[i + 1] = gradient[1];
+        data[i + 2] = gradient[2];
+        data[i + 3] = gradient[3];
+      }
+    }
+    offScreenCtxes[canvasID].putImageData(img, 0, 0);
+  });
 }
 let renderId = 0;
 async function drawFrame(index: number): Promise<void> {
@@ -381,6 +438,7 @@ async function previousFrame(): Promise<void> {
 }
 
 let isPlaying = false;
+let isRendering = false;
 let lastFrameTime = 0;
 
 function playVideo(): void {
@@ -417,6 +475,19 @@ async function playLoop(time: number): Promise<void> {
     requestAnimationFrame(playLoop);
   }
 }
+let renderedFrames = 0;
+async function renderFrame(frame: number): Promise<void> {}
+async function renderVideo(): Promise<void> {
+  if (
+    !tilesConqueredTimelapse.ready ||
+    !tradeRouteTimelapse.ready ||
+    isRendering
+  )
+    return;
+  for (renderedFrames = 0; renderedFrames < totalFrames; renderedFrames++) {
+    renderFrame(renderedFrames);
+  }
+}
 
 function stopVideo(): void {
   isPlaying = false;
@@ -431,21 +502,24 @@ start(window.gameId);
 function setupButtons(
   buttonName: string,
   func: (timelapse: number) => void | Promise<void>,
+  hiddenUntilTimelapseFinished: boolean = false,
 ) {
   const buttons = document.querySelectorAll<HTMLButtonElement>(
     `[name="${buttonName}"]`,
   );
-
+  if (hiddenUntilTimelapseFinished)
+    buttonsHiddenUntilTimelapseFinished.push(...buttons);
   for (let i = 0; i < buttons.length; i++) {
     buttons[i].onclick = async () => {
       func(i);
     };
   }
 }
-setupButtons("play", playVideo);
-setupButtons("pause", stopVideo);
+setupButtons("play", playVideo, true);
+setupButtons("pause", stopVideo, true);
 setupButtons("next", nextFrame);
 setupButtons("previous", previousFrame);
+setupButtons("renderVideo", renderVideo, true);
 
 function setupTimelapseToggle(
   id: string,
