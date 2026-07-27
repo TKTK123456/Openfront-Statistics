@@ -196,7 +196,7 @@
           <span id="timelapse%">0.00%</span>
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="render" hidden>
         <h2>Render MP4 Video</h2>
         <div
           style="
@@ -216,7 +216,23 @@
           ></progress>
           <span id="rendered%">0.00%</span>
         </div>
-        <button name="renderVideo" hidden>Render MP4 file</button>
+        <input
+          type="checkbox"
+          id="renderTileConquered"
+          name="renderTileConquered"
+          value="on"
+          checked
+        />
+        <label for="renderTileConquered">Tiles Conquered</label>
+        <input
+          type="checkbox"
+          id="renderTradeRoutes"
+          name="renderTradeRoutes"
+          value="on"
+          checked
+        />
+        <label for="renderTradeRoutes">Trade Routes</label>
+        <button name="renderVideo">Render MP4 file</button>
       </div>
     </main>
     <script>

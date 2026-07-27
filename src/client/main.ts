@@ -63,12 +63,28 @@ let tileConquredTime: Map<number, number>[] = [];
 let borderFrames: Int32Array[] = [];
 let tileRefs: TileRefs;
 const visibleTimelapses: {
-  tilesConquered: { visible: boolean; toggle: () => void };
-  tradeRoutes: { visible: boolean; toggle: () => void };
+  tilesConquered: {
+    visible: boolean;
+    toggle: (render: boolean) => void;
+    render: boolean;
+  };
+  tradeRoutes: {
+    visible: boolean;
+    toggle: (render: boolean) => void;
+    render: boolean;
+  };
 } = {
   tilesConquered: {
     visible: true,
-    toggle: async () => {
+    render: true,
+    toggle: async (render: boolean = false) => {
+      if (render) {
+        visibleTimelapses.tilesConquered.render = visibleTimelapses
+          .tilesConquered.render
+          ? false
+          : true;
+        return;
+      }
       visibleTimelapses.tilesConquered.visible = visibleTimelapses
         .tilesConquered.visible
         ? false
@@ -80,7 +96,15 @@ const visibleTimelapses: {
   },
   tradeRoutes: {
     visible: true,
-    toggle: async () => {
+    render: true,
+    toggle: async (render: boolean = false) => {
+      if (render) {
+        visibleTimelapses.tradeRoutes.render = visibleTimelapses.tradeRoutes
+          .render
+          ? false
+          : true;
+        return;
+      }
       visibleTimelapses.tradeRoutes.visible = visibleTimelapses.tradeRoutes
         .visible
         ? false
@@ -108,6 +132,8 @@ function onFinishTimelapse() {
   for (const button of buttonsHiddenUntilTimelapseFinished) {
     button.hidden = false;
   }
+  let render = document.getElementById("render");
+  if (render) render.hidden = false;
 }
 function drawBufferToCanvas(
   buffer: ArrayBuffer,
@@ -485,23 +511,35 @@ async function renderFrame(
 ): Promise<void> {
   let tileFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
   let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
-  let mask: Uint8Array[] = [defaultMask!];
+  const draws: Promise<void>[] = [];
+  const masks: Uint8Array[] = [defaultMask!];
 
-  tileFrameData = await tilesConqueredTimelapse.drawFrame(frame);
-  if (tileFrameData !== undefined) {
-    mask.push(tileFrameData.mask);
+  if (visibleTimelapses.tilesConquered.render) {
+    tileFrameData = await tilesConqueredTimelapse.drawFrame(frame);
+    if (tileFrameData) {
+      masks.push(tileFrameData.mask);
+    }
+    draws.push(drawBorder(frame, 5));
   }
-  tradeFrameData = await tradeRouteTimelapse.drawFrame(frame);
-  if (tradeFrameData !== undefined && tileFrameData !== undefined) {
-    const allDraws: Promise<void>[] = [];
-    mask.push(tradeFrameData.mask);
-    allDraws.push(drawMask(intersectMasks(mask), 4));
-    allDraws.push(drawBorder(frame, 5));
-    allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 6));
-    allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 7));
-    await Promise.all(allDraws);
-    await videoRender.addFrame(offScreenCanvases.slice(4));
+
+  if (visibleTimelapses.tradeRoutes.render) {
+    tradeFrameData = await tradeRouteTimelapse.drawFrame(frame);
+    if (tradeFrameData) {
+      masks.push(tradeFrameData.mask);
+    }
   }
+
+  if (tileFrameData) {
+    draws.push(drawBufferToCanvas(tileFrameData.buffer, 6));
+  }
+
+  if (tradeFrameData) {
+    draws.push(drawBufferToCanvas(tradeFrameData.buffer, 7));
+  }
+
+  draws.push(drawMask(intersectMasks(masks), 4));
+  await Promise.all(draws);
+  await videoRender.addFrame(offScreenCanvases.slice(4));
 }
 async function renderVideo(): Promise<void> {
   if (
@@ -572,16 +610,21 @@ setupButtons("play", playVideo, true);
 setupButtons("pause", stopVideo, true);
 setupButtons("next", nextFrame);
 setupButtons("previous", previousFrame);
-setupButtons("renderVideo", renderVideo, true);
+setupButtons("renderVideo", renderVideo);
 
 function setupTimelapseToggle(
   id: string,
   timelapse: keyof typeof visibleTimelapses,
+  render: boolean = false,
 ) {
   const checkbox = document.getElementById(id) as HTMLInputElement;
   if (!checkbox.checked) checkbox.checked = true;
-  checkbox.onchange = visibleTimelapses[timelapse].toggle;
+  checkbox.onchange = () => {
+    visibleTimelapses[timelapse].toggle(render);
+  };
 }
 
 setupTimelapseToggle("showTileConquered", "tilesConquered");
 setupTimelapseToggle("showTradeRoutes", "tradeRoutes");
+setupTimelapseToggle("renderTileConquered", "tilesConquered", true);
+setupTimelapseToggle("renderTradeRoutes", "tradeRoutes", true);
