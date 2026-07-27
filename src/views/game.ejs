@@ -148,8 +148,8 @@
         <div class="map-stack">
           <img class="background" />
           <canvas id="borderMap" style="z-index: 1"></canvas>
-          <canvas id="map" style="z-index: 3"></canvas>
-          <canvas id="tradeRouteMap" style="z-index: 5"></canvas>
+          <canvas id="map" style="z-index: 2"></canvas>
+          <canvas id="tradeRouteMap" style="z-index: 3"></canvas>
           <canvas id="mask" style="z-index: 4"></canvas>
         </div>
 
@@ -161,8 +161,8 @@
             gap: 10px;
           "
         >
-          <button name="play">Play</button>
-          <button name="pause">Pause</button>
+          <button name="play" hidden>Play</button>
+          <button name="pause" hidden>Pause</button>
           <button name="previous">◀ Previous</button>
 
           <input
@@ -186,7 +186,7 @@
             white-space: nowrap;
           "
         >
-          <label for="timelapseProgress">Frames loaded:</label>
+          <label for="timelapseProgress">Frame loading progress:</label>
           <progress
             class="progress"
             id="timelapseProgress"
@@ -195,6 +195,44 @@
           ></progress>
           <span id="timelapse%">0.00%</span>
         </div>
+      </div>
+      <div class="card" id="render" hidden>
+        <h2>Render MP4 Video</h2>
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+          "
+        >
+          <label for="renderProgress">Frames rendering progress:</label>
+          <progress
+            class="progress"
+            id="renderProgress"
+            max="100"
+            value="0"
+          ></progress>
+          <span id="rendered%">0.00%</span>
+        </div>
+        <input
+          type="checkbox"
+          id="renderTileConquered"
+          name="renderTileConquered"
+          value="on"
+          checked
+        />
+        <label for="renderTileConquered">Tiles Conquered</label>
+        <input
+          type="checkbox"
+          id="renderTradeRoutes"
+          name="renderTradeRoutes"
+          value="on"
+          checked
+        />
+        <label for="renderTradeRoutes">Trade Routes</label>
+        <button name="renderVideo">Render MP4 file</button>
       </div>
     </main>
     <script>

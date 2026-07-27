@@ -119,8 +119,7 @@ export function interpolateColor(
 }
 export function createHeatmap(options: {
   tileFrequencies:
-    | Map<number, number>
-    | { tiles: Int32Array; counts: Float64Array };
+    Map<number, number> | { tiles: Int32Array; counts: Float64Array };
   width: number;
   height: number;
   radius: number;
@@ -132,8 +131,7 @@ export function createHeatmap(options: {
 }): { heatmap: Uint8ClampedArray; mask: Uint8Array };
 export function createHeatmap(options: {
   tileFrequencies:
-    | Map<number, number>
-    | { tiles: Int32Array; counts: Float64Array };
+    Map<number, number> | { tiles: Int32Array; counts: Float64Array };
   width: number;
   height: number;
   radius: number;
@@ -145,8 +143,7 @@ export function createHeatmap(options: {
 }): Uint8ClampedArray;
 export function createHeatmap(options: {
   tileFrequencies:
-    | Map<number, number>
-    | { tiles: Int32Array; counts: Float64Array };
+    Map<number, number> | { tiles: Int32Array; counts: Float64Array };
   width: number;
   height: number;
   radius: number;

@@ -1,4 +1,4 @@
-import { interpolateFrames } from "src/shared/util";
+import { interpolateFrames } from "src/shared/util/util";
 
 type RenderResult = {
   idx: number;

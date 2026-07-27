@@ -10,8 +10,7 @@ import { createServer } from "vite";
 import { GameHanlderWorkerResult, runGame } from "./runGame";
 import { heatmapCreator } from "src/visualization/heatmap";
 import { createImageBuffer, sendBuffer } from "src/util/util";
-import { createCombinedTimelapse } from "src/visualization/timelapse";
-import { combineBuffer, mapsToBinary } from "src/shared/util";
+import { combineBuffer, mapsToBinary } from "src/shared/util/util";
 
 const vite = await createServer({
   configFile: path.resolve("vite.config.ts"),
