@@ -374,7 +374,7 @@ function drawBorder(index: number, canvasID: number): Promise<void> {
     data.fill(0);
 
     for (const tile of borderFrames[index]) {
-      const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+      const i = tile << 2;
       data[i + 3] = 255;
     }
 
@@ -398,7 +398,7 @@ async function drawMask(mask: Uint8Array, canvasID: number) {
 
         const tile = (byteIndex << 3) + bit;
 
-        const i = (tileRefs.y(tile) * width + tileRefs.x(tile)) << 2;
+        const i = tile << 2;
 
         data[i] = gradient[0];
         data[i + 1] = gradient[1];
