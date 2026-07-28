@@ -410,33 +410,72 @@ async function drawMask(mask: Uint8Array, canvasID: number) {
   });
 }
 let renderId = 0;
+async function createFrame(input: {
+  index: number;
+  offScreenOffset?: number;
+  shouldContinue?: () => boolean;
+  noFrameYet?: () => void;
+  tilesConquered: boolean;
+  tradeRoutes: boolean;
+}) {
+  const {
+    index,
+    offScreenOffset = 0,
+    shouldContinue = () => true,
+    noFrameYet = () => {},
+    tilesConquered,
+    tradeRoutes,
+  } = input;
+  let tileFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
+  const draws: Promise<void>[] = [];
+  const masks: Uint8Array[] = [defaultMask!];
+
+  if (tilesConquered) {
+    tileFrameData = await tilesConqueredTimelapse.drawFrame(index, noFrameYet);
+    if (tileFrameData) {
+      masks.push(tileFrameData.mask);
+    }
+  }
+  if (!shouldContinue()) return false;
+  if (tradeRoutes) {
+    tradeFrameData = await tradeRouteTimelapse.drawFrame(index, noFrameYet);
+    if (tradeFrameData) {
+      masks.push(tradeFrameData.mask);
+    }
+  }
+  if (!shouldContinue()) return false;
+  draws.push(drawMask(intersectMasks(masks), offScreenOffset));
+  if (tileFrameData) {
+    draws.push(drawBorder(index, offScreenOffset + 1));
+    draws.push(drawBufferToCanvas(tileFrameData.buffer, offScreenOffset + 2));
+  } else if (tilesConquered) {
+    return false;
+  }
+
+  if (tradeFrameData) {
+    draws.push(drawBufferToCanvas(tradeFrameData.buffer, offScreenOffset + 3));
+  } else if (tradeRoutes) {
+    return false;
+  }
+  await Promise.all(draws);
+  if (!shouldContinue()) return false;
+  return true;
+}
 async function drawFrame(index: number): Promise<void> {
   const id = ++renderId;
   const shouldContinue = () => id === renderId;
-  let tileFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
-  let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
-  let mask: Uint8Array[] = [defaultMask!];
-
-  tileFrameData = await tilesConqueredTimelapse.drawFrame(index, () => {
-    if (shouldContinue()) drawFrame(index);
-  });
-  if (!shouldContinue()) return;
-  if (tileFrameData !== undefined) {
-    if (visibleTimelapses.tilesConquered.visible) mask.push(tileFrameData.mask);
-  }
-  if (!shouldContinue()) return;
-  tradeFrameData = await tradeRouteTimelapse.drawFrame(index, () => {
-    if (shouldContinue()) drawFrame(index);
-  });
-  if (!shouldContinue()) return;
-  if (tradeFrameData !== undefined && tileFrameData !== undefined) {
-    const allDraws: Promise<void>[] = [];
-    if (visibleTimelapses.tradeRoutes.visible) mask.push(tradeFrameData.mask);
-    allDraws.push(drawMask(intersectMasks(mask), 0));
-    allDraws.push(drawBorder(index, 1));
-    allDraws.push(drawBufferToCanvas(tileFrameData.buffer, 2));
-    allDraws.push(drawBufferToCanvas(tradeFrameData.buffer, 3));
-    await Promise.all(allDraws);
+  if (
+    await createFrame({
+      index,
+      shouldContinue,
+      noFrameYet: () => {
+        if (shouldContinue()) drawFrame(index);
+      },
+      tilesConquered: true,
+      tradeRoutes: true,
+    })
+  ) {
     borderCtx.clearRect(0, 0, width, height);
     maskCtx.clearRect(0, 0, width, height);
     ctx.clearRect(0, 0, width, height);
@@ -484,6 +523,7 @@ function playVideo(): void {
 
 async function playFrame(time: number) {
   if (time - lastFrameTime >= 1000 / 30) {
+    console.log(time - lastFrameTime);
     if (frame >= totalFrames - 1) {
       stopVideo();
       return;
@@ -492,9 +532,8 @@ async function playFrame(time: number) {
     frame++;
 
     frameSlider.value = String(frame);
-    await drawFrame(frame);
-
     lastFrameTime = time;
+    await drawFrame(frame);
   }
 }
 
@@ -504,7 +543,6 @@ async function playLoop(time: number): Promise<void> {
     requestAnimationFrame(playLoop);
   }
 }
-let renderedFrames = 0;
 async function renderFrame(
   frame: number,
   videoRender: VideoEncoder,
@@ -556,10 +594,10 @@ async function renderVideo(): Promise<void> {
   renderedProgress.value = 0;
   renderedPercent.textContent = `0.00%`;
   try {
-    for (renderedFrames = 0; renderedFrames < totalFrames; renderedFrames++) {
+    for (let renderedFrames = 0; renderedFrames < totalFrames; renderedFrames++) {
       await renderFrame(renderedFrames, videoRender);
       let percent = Math.min(
-        Math.max((renderedFrames + 1 / totalFrames) * 100, 0),
+        Math.max(((renderedFrames + 1) / totalFrames) * 100, 0),
         100,
       );
       renderedProgress.value = percent;

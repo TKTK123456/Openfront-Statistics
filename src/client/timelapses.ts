@@ -1,5 +1,3 @@
-import { interpolateFrames } from "src/shared/util/util";
-
 type RenderResult = {
   idx: number;
   buffer: ArrayBuffer;
@@ -20,10 +18,114 @@ type WorkerState = {
   busy: boolean;
   job?: Job;
 };
+const dbName = `timelapse-${crypto.randomUUID()}`;
 
+async function openRegistry(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("timelapseRegistry", 1);
+
+    request.onerror = () => reject(request.error);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains("databases")) {
+        db.createObjectStore("databases");
+      }
+    };
+
+    request.onsuccess = () => {
+      const db = request.result;
+
+      // Allow another tab to delete/upgrade this DB.
+      db.onversionchange = () => {
+        db.close();
+      };
+
+      resolve(db);
+    };
+  });
+}
+
+const registryDb = await openRegistry();
+
+function store(mode: IDBTransactionMode) {
+  return registryDb.transaction("databases", mode).objectStore("databases");
+}
+
+function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function heartbeat() {
+  await requestToPromise(store("readwrite").put(Date.now(), dbName));
+}
+
+async function cleanup() {
+  const keys = (await requestToPromise(
+    store("readonly").getAllKeys(),
+  )) as string[];
+
+  const now = Date.now();
+
+  for (const key of keys) {
+    if (key === dbName) continue;
+
+    const lastSeen = (await requestToPromise(store("readonly").get(key))) as
+      number | undefined;
+
+    if (lastSeen === undefined) continue;
+
+    if (now - lastSeen > 20_000) {
+      await new Promise<void>((resolve) => {
+        const request = indexedDB.deleteDatabase(key);
+
+        request.onblocked = () => {
+          console.warn(`Deletion of ${key} is blocked.`);
+        };
+
+        request.onsuccess = async () => {
+          await requestToPromise(store("readwrite").delete(key));
+
+          console.log(`Deleted stale database: ${key}`);
+          resolve();
+        };
+
+        request.onerror = () => {
+          console.warn(`Failed to delete ${key}`, request.error);
+          resolve();
+        };
+      });
+    }
+  }
+}
+
+// Register ourselves.
+await heartbeat();
+
+// Clean up any stale databases.
+await cleanup();
+
+// Continue heartbeating.
+const heartbeatInterval = setInterval(() => {
+  heartbeat().catch(console.error);
+}, 5000);
+
+addEventListener("beforeunload", () => {
+  clearInterval(heartbeatInterval);
+
+  const tx = registryDb.transaction("databases", "readwrite");
+  tx.objectStore("databases").delete(dbName);
+
+  indexedDB.deleteDatabase(dbName);
+  registryDb.close();
+});
 class TimelapseDB {
   private db!: IDBDatabase;
-  private readonly dbName = "timelapses";
+  private readonly dbName = dbName!;
   private storeName = "frames";
 
   async init() {
@@ -127,7 +229,7 @@ export class Timelapse {
   public ready: boolean = false;
   public onFinish: (self: Timelapse) => void;
   public onFrameLoad: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void;
-
+  private workerCount: number;
   constructor(options: {
     width: number;
     height: number;
@@ -164,7 +266,7 @@ export class Timelapse {
     ) {
       this.createWorker();
     }
-
+    this.workerCount = workerCount;
     // Start loading every frame immediately
     this.preloadAll();
   }
@@ -262,6 +364,10 @@ export class Timelapse {
     idx: number,
     onFinish: (img: { buffer: ArrayBuffer; mask: Uint8Array }) => void,
   ): Promise<{ buffer: ArrayBuffer; mask: Uint8Array }> {
+    if (Timelapse.totalWorkerCount < this.workerCount) {
+      Timelapse.totalWorkerCount++;
+      this.createWorker();
+    }
     if (
       this.queue.findIndex(
         (j) => j.idx === idx && j.timelapseId === this.id,
@@ -304,6 +410,15 @@ export class Timelapse {
         width: job.width,
         height: job.height,
       });
+    }
+    if (this.Queue.length === 0) {
+      for (let i = 0;i<this.Workers.length;i++) {
+        if (this.Workers[i].busy) continue;
+        this.totalWorkerCount--;
+        const worker = this.Workers.splice(i, 1)[0]
+        i--
+        worker.worker.terminate()
+      }
     }
   }
   public bringToFrontOfQueue(
