@@ -412,12 +412,12 @@ export class Timelapse {
       });
     }
     if (this.Queue.length === 0) {
-      for (let i = 0;i<this.Workers.length;i++) {
+      for (let i = 0; i < this.Workers.length; i++) {
         if (this.Workers[i].busy) continue;
         this.totalWorkerCount--;
-        const worker = this.Workers.splice(i, 1)[0]
-        i--
-        worker.worker.terminate()
+        const worker = this.Workers.splice(i, 1)[0];
+        i--;
+        worker.worker.terminate();
       }
     }
   }

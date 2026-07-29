@@ -594,7 +594,11 @@ async function renderVideo(): Promise<void> {
   renderedProgress.value = 0;
   renderedPercent.textContent = `0.00%`;
   try {
-    for (let renderedFrames = 0; renderedFrames < totalFrames; renderedFrames++) {
+    for (
+      let renderedFrames = 0;
+      renderedFrames < totalFrames;
+      renderedFrames++
+    ) {
       await renderFrame(renderedFrames, videoRender);
       let percent = Math.min(
         Math.max(((renderedFrames + 1) / totalFrames) * 100, 0),
