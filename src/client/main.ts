@@ -370,6 +370,7 @@ function loadGame(data: {
 
 function drawBorder(index: number, canvasID: number): Promise<void> {
   return imageQueue.useImage((img: ImageData) => {
+    let time = performance.now()
     const data = img.data;
     data.fill(0);
 
@@ -379,11 +380,13 @@ function drawBorder(index: number, canvasID: number): Promise<void> {
     }
 
     offScreenCtxes[canvasID].putImageData(img, 0, 0);
+    console.log(performance.now()-time + "ms for draw border")
   });
 }
 async function drawMask(mask: Uint8Array, canvasID: number) {
   const gradient = heatmapCreator.defaultGradient[0].color;
   return imageQueue.useImage((img: ImageData) => {
+    let time = performance.now()
     const data = img.data;
 
     data.fill(0);
@@ -407,6 +410,7 @@ async function drawMask(mask: Uint8Array, canvasID: number) {
       }
     }
     offScreenCtxes[canvasID].putImageData(img, 0, 0);
+    console.log(performance.now()-time + "ms for draw mask")
   });
 }
 let renderId = 0;
@@ -430,7 +434,6 @@ async function createFrame(input: {
   let tradeFrameData: { buffer: ArrayBuffer; mask: Uint8Array } | undefined;
   const draws: Promise<void>[] = [];
   const masks: Uint8Array[] = [defaultMask!];
-
   if (tilesConquered) {
     tileFrameData = await tilesConqueredTimelapse.drawFrame(index, noFrameYet);
     if (tileFrameData) {
@@ -523,7 +526,6 @@ function playVideo(): void {
 
 async function playFrame(time: number) {
   if (time - lastFrameTime >= 1000 / 30) {
-    console.log(time - lastFrameTime);
     if (frame >= totalFrames - 1) {
       stopVideo();
       return;
